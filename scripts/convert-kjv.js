@@ -1,6 +1,6 @@
 // One-off: turn the source KJV JSON (66 books in canonical order, chapters of verse strings)
-// Source: https://raw.githubusercontent.com/thiagobodruk/bible/master/json/en_kjv.json (saved as data/kjv-raw.json)
 // into data/kjv.json: [[bookName, chapter, verse, text], ...] using the app's book names.
+// Source: https://raw.githubusercontent.com/thiagobodruk/bible/master/json/en_kjv.json (saved as data/kjv-raw.json)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { BOOKS } from '../public/books.js';
 
