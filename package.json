@@ -38,7 +38,8 @@
       "package.json",
       "node_modules/**",
       "!node_modules/electron{,-builder}/**",
-      "!**/*.map"
+      "!**/*.map",
+      "!node_modules/onnxruntime-node/bin/napi-v3/linux/**"
     ],
     "asarUnpack": [
       "node_modules/onnxruntime-node/**",
@@ -67,11 +68,7 @@
     "mac": {
       "target": [
         {
-          "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
+          "target": "dmg"
         }
       ],
       "icon": "build/icon.icns",
@@ -80,10 +77,7 @@
         "NSMicrophoneUsageDescription": "Scripture Listener listens to the sermon to find Bible references."
       },
       "identity": "-",
-      "hardenedRuntime": false,
-      "files": [
-        "!node_modules/onnxruntime-node/bin/napi-v3/{linux,win32}/**"
-      ]
+      "hardenedRuntime": false
     },
     "win": {
       "target": [
@@ -94,10 +88,7 @@
           ]
         }
       ],
-      "icon": "build/icon.ico",
-      "files": [
-        "!node_modules/onnxruntime-node/bin/napi-v3/{linux,darwin}/**"
-      ]
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
