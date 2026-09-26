@@ -171,7 +171,10 @@ const json = (body, status = 200) =>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === 'GET' && url.pathname === '/') return downloadPage(env);
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/') {
+      const page = await downloadPage(env);
+      return request.method === 'HEAD' ? new Response(null, { headers: page.headers }) : page;
+    }
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/download/')) {
       return download(request, env, decodeURIComponent(url.pathname.slice('/download/'.length)));
     }
