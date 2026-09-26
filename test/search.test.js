@@ -44,6 +44,7 @@ test('ignores ordinary church talk and stock phrases', { skip }, async () => {
     'we pray all this in the name of the Lord Jesus Christ amen',
     'grace and peace to you from God our father',
     'the word of the Lord came to me this morning while I was praying',
+    'God sent his prophet to tell the man that he was going to die. Then the man prayed',
   ]) {
     assert.deepEqual(await quotes(text), [], text);
   }

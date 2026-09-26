@@ -44,3 +44,29 @@ test('follow-up verses use context', () => {
   assert.deepEqual(refs('Acts 2 verse 38 then verse 41'), ['Acts 2:38', 'Acts 2:41']);
   assert.deepEqual(refs('verse 3'), []); // no context
 });
+
+test('misheard book names are corrected when followed by numbers', () => {
+  assert.deepEqual(refs('Zehniah 3:17'), ['Zephaniah 3:17']);
+  assert.deepEqual(refs('Habakook chapter 2 verse 3'), ['Habakkuk 2:3']);
+  assert.deepEqual(refs('Habbakuk 2 3'), ['Habakkuk 2:3']);
+  assert.deepEqual(refs('first Tesalonians 5 17'), ['1 Thessalonians 5:17']);
+  assert.deepEqual(refs('Duteronomy 28 13'), ['Deuteronomy 28:13']);
+  assert.deepEqual(refs('Eklesiastes 3 1'), ['Ecclesiastes 3:1']);
+  assert.deepEqual(refs('Filipians 4 13'), ['Philippians 4:13']);
+  assert.deepEqual(refs('Kolosians 3 2'), ['Colossians 3:2']);
+  assert.deepEqual(refs('Ezekial 37 4'), ['Ezekiel 37:4']);
+  assert.deepEqual(refs('Galations 5 22'), ['Galatians 5:22']);
+  assert.deepEqual(refs('Malakai 3 10'), ['Malachi 3:10']);
+  assert.deepEqual(refs('Nehemaya 8 10'), ['Nehemiah 8:10']);
+});
+
+test('ordinary words near book names are left alone', () => {
+  assert.deepEqual(refs('look at number 3 and 4 on the sheet'), []);
+  assert.deepEqual(refs('there are 3 things and 4 people'), []);
+  assert.deepEqual(refs('the market 2 3 times a week'), []);
+  assert.deepEqual(refs('the judges 3 4 votes'), ['Judges 3:4']); // real book name, kept as before
+  assert.deepEqual(refs('romance 12 1'), []);
+  assert.deepEqual(refs('in my house 3 4 people'), []);
+  assert.deepEqual(refs('these 2 3 things'), []);
+  assert.deepEqual(refs('the regulation 5 6 says'), []);
+});

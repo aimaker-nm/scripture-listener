@@ -15,6 +15,7 @@
       <button type="button" data-style="lowerThird">Lower third</button>
     </div>
     <label class="toggle"><input type="checkbox" id="auto-send" /> Auto-send</label>
+    <span id="level" class="level" title="Microphone level"><span></span></span>
     <button id="listen" class="primary">🎤 Start listening</button>
   </header>
 
@@ -69,7 +70,14 @@
             <option value="ylt">Young's Literal (YLT)</option>
           </select>
         </label>
-        <label>Speech language
+        <label>Speech engine
+          <select name="speechEngine">
+            <option value="whisper">Whisper on this Mac (best for accents, works offline)</option>
+            <option value="browser">Chrome built-in</option>
+          </select>
+        </label>
+        <label>Microphone <select name="micId" id="mic-select"><option value="">System default</option></select></label>
+        <label>Speech language (Chrome engine)
           <select name="language">
             <option value="en-US">English (US)</option>
             <option value="en-GB">English (UK)</option>

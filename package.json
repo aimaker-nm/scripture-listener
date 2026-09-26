@@ -11,7 +11,8 @@
     "start": "node server.js",
     "build-index": "node scripts/build-index.js",
     "test": "node --test test/*.test.js",
-    "make-app": "bash mac/make-app.sh"
+    "make-app": "bash mac/make-app.sh",
+    "setup-whisper": "bash scripts/setup-whisper.sh"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1"

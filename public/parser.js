@@ -90,6 +90,65 @@ export function normalize(text) {
   return wordsToDigits(t).replace(/\s+/g, ' ').trim();
 }
 
+// ---------- misheard book names ----------
+// Accents and speech engines garble the rarer book names ("Zethaniyar" for Zephaniah,
+// "Habakook", "Tesalonians"). A word that is close to a book name AND followed by a number
+// is corrected. Everyday words that sit near a book name are never touched.
+const NOT_BOOKS = new Set(['number', 'numbered', 'chapter', 'chapters', 'verse', 'verses', 'page', 'pages',
+  'hymn', 'point', 'points', 'step', 'steps', 'level', 'room', 'line', 'lines', 'part', 'parts', 'games',
+  'jobs', 'marks', 'marked', 'market', 'lukes', 'acting', 'action', 'actions', 'rooms', 'judge', 'judged',
+  'number', 'minutes', 'hours', 'years', 'times', 'people', 'things', 'places', 'names', 'romance',
+  'genius', 'james', 'johns', 'johnson', 'daniels', 'kings', 'king', 'peter', 'titles', 'revolution',
+  'house', 'houses', 'these', 'those', 'either', 'easter', 'ether', 'denial', 'relation', 'relations',
+  'regulation', 'regulations', 'remains', 'roman', 'crown', 'pester', 'potter', 'putter', 'patter',
+  'malice', 'mulch', 'matte', 'jeremy', 'jonas', 'mathes', 'lamentation']);
+// Words that are part of a multi-word book name ("solomon", "songs", "apostles").
+const ALIAS_WORDS = new Set(BOOKS.flatMap((b) => b.aliases).flatMap((a) => a.split(' ')));
+// Compare against full book names only (not abbreviations like "thess", which sit near "these").
+const FUZZY_TARGETS = [...new Set(BOOKS.map((b) => b.aliases[0]).filter((a) => a.length >= 5 && !a.includes(' ')))];
+
+function editDistance(a, b) {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diag = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const next = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = next;
+    }
+  }
+  return row[b.length];
+}
+
+// Rough sound-alike form: "ph"->"f", "ch"/"c"->"k", doubled letters collapsed, vowels and h/y/w dropped after the first letter.
+const skeleton = (w) => w.replace(/ph/g, 'f').replace(/ch|c/g, 'k').replace(/(.)\1+/g, '$1').replace(/(?!^)[aeiouyhw]/g, '');
+
+// First sound, so "Filipians"/"Philippians" and "Kolosians"/"Colossians" still line up.
+const firstSound = (w) => w.replace(/^ph/, 'f').replace(/^k/, 'c')[0];
+
+function closestBook(word) {
+  if (word.length < 5 || NOT_BOOKS.has(word) || ALIASES.has(word) || ALIAS_WORDS.has(word)) return null;
+  let best = null;
+  for (const alias of FUZZY_TARGETS) {
+    if (Math.abs(alias.length - word.length) > 3) continue;
+    const d = editDistance(word, alias);
+    const sk = editDistance(skeleton(word), skeleton(alias));
+    // Same first letter, and about 1 edit per 4 letters; long names may also match by sound skeleton.
+    const ok =
+      firstSound(word) === firstSound(alias) &&
+      (d <= Math.floor(alias.length / 4) || (alias.length >= 7 && sk === 0 && d <= Math.ceil(alias.length / 3)));
+    if (ok && (!best || d < best.d)) best = { alias, d };
+  }
+  return best?.alias ?? null;
+}
+
+export { closestBook };
+
+export function fixBookNames(t) {
+  return t.replace(/\b([a-z]{5,})(?= (?:chapter )?\d)/g, (w) => closestBook(w) || w);
+}
+
 export function formatReference({ book, chapter, verse, verseEnd }) {
   let s = `${book} ${chapter}`;
   if (verse) s += `:${verse}`;
@@ -126,7 +185,7 @@ function splitGlued(book, n) {
  * @returns {{references: object[], context: object|null}}
  */
 export function findReferences(text, context = null) {
-  const t = normalize(text);
+  const t = fixBookNames(normalize(text));
   const found = [];
   const spans = [];
   let ctx = context;

@@ -2,6 +2,7 @@
 // and pushes verses to ProPresenter 7 through its network API (7.9+).
 // No dependencies; needs Node 18+ (built-in fetch).
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -32,6 +33,8 @@ const DEFAULT_CONFIG = {
   // a Message only fills the first text box, so extra boxes show their placeholder.
   fullScreenSlide: '3FB9D028-2B10-4351-87B1-21C4C988EE34', // Black Box > Four Lines
   lowerThirdSlide: '1498A8E4-8CAB-443D-87A1-09316C611175', // Black > Lower 3rd Lyrics
+  speechEngine: 'whisper', // 'whisper' (this Mac, handles accents) or 'browser' (Chrome's built-in)
+  micId: '', // audio input device id; '' = system default
   // Story detection (retold Bible stories) via the Cloudflare Worker in cloud/.
   storyDetection: true,
   aiUrl: '', // e.g. https://scripture-listener-ai.<you>.workers.dev
@@ -50,7 +53,7 @@ if (existsSync(CONFIG_FILE)) {
 // The browser never sees the AI token; it only needs to know whether story detection is set up.
 function publicConfig() {
   const { aiToken, ...rest } = config;
-  return { ...rest, storyDetectionAvailable: Boolean(config.aiUrl && aiToken) };
+  return { ...rest, storyDetectionAvailable: Boolean(config.aiUrl && aiToken), whisperReady };
 }
 
 // ---------- ProPresenter ----------
@@ -179,6 +182,94 @@ async function getVerse(reference, translation) {
   return result;
 }
 
+// ---------- Speech to text (Whisper on this Mac) ----------
+// whisper.cpp's server (brew install whisper-cpp) with the large-v3-turbo model: accurate across
+// accents, runs offline on Apple Silicon. Started and stopped with this server.
+
+const WHISPER_PORT = 4001;
+const WHISPER_DIR = path.join(ROOT, 'data', 'whisper');
+const WHISPER_MODEL = path.join(WHISPER_DIR, 'ggml-large-v3-turbo-q5_0.bin');
+const VAD_MODEL = path.join(WHISPER_DIR, 'ggml-silero-v5.1.2.bin');
+// Nudges Whisper towards Bible spellings ("Habakkuk", "1 Thessalonians 5:17").
+const WHISPER_VOCAB =
+  'Sermon with Bible readings, e.g. Genesis, Deuteronomy, Ecclesiastes, Isaiah, Jeremiah, Habakkuk, ' +
+  'Zephaniah, Haggai, Zechariah, Malachi, Philippians, Colossians, 1 Thessalonians 5:17, Philemon, Hebrews.';
+// Phrases Whisper sometimes invents from noise or music.
+const HALLUCINATIONS = /^(thank you\.?|thanks for watching[.!]?|you|bye\.?|\[.*\]|\(.*\)|subtitles? by.*|\.+)$/i;
+
+let whisperProc = null;
+let whisperReady = false;
+let shuttingDown = false;
+
+const whisperBin = () =>
+  ['/opt/homebrew/bin/whisper-server', '/usr/local/bin/whisper-server'].find((p) => existsSync(p));
+
+function startWhisper() {
+  const bin = whisperBin();
+  if (!bin || !existsSync(WHISPER_MODEL)) {
+    console.log('Whisper not installed; using Chrome speech recognition (see README to install).');
+    return;
+  }
+  const args = ['-m', WHISPER_MODEL, '--host', '127.0.0.1', '--port', String(WHISPER_PORT), '-l', 'en', '-t', '4', '-sns'];
+  if (existsSync(VAD_MODEL)) args.push('--vad', '-vm', VAD_MODEL);
+  whisperProc = spawn(bin, args, { stdio: 'ignore' });
+  whisperProc.on('exit', () => {
+    whisperReady = false;
+    whisperProc = null;
+    if (!shuttingDown) setTimeout(startWhisper, 3000);
+  });
+  const poll = setInterval(async () => {
+    try {
+      await fetch(`http://127.0.0.1:${WHISPER_PORT}/`, { signal: AbortSignal.timeout(1000) });
+      whisperReady = true;
+      clearInterval(poll);
+      console.log('Whisper speech recognition ready.');
+    } catch {
+      if (!whisperProc) clearInterval(poll);
+    }
+  }, 500);
+}
+
+function stopWhisper() {
+  shuttingDown = true;
+  whisperProc?.kill();
+}
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    stopWhisper();
+    process.exit(0);
+  });
+}
+
+async function transcribe(wav, context) {
+  if (!whisperReady) throw new Error('Whisper is still starting');
+  const form = new FormData();
+  form.append('file', new Blob([wav], { type: 'audio/wav' }), 'speech.wav');
+  form.append('response_format', 'json');
+  form.append('temperature', '0');
+  // The vocabulary plus the last words heard, so sentences continue naturally.
+  form.append('prompt', `${WHISPER_VOCAB} ${context}`.slice(-600));
+  const res = await fetch(`http://127.0.0.1:${WHISPER_PORT}/inference`, {
+    method: 'POST',
+    body: form,
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`Whisper failed (${res.status})`);
+  const text = String((await res.json()).text || '').replace(/\s+/g, ' ').trim();
+  return HALLUCINATIONS.test(text) ? '' : text;
+}
+
+async function readRaw(req, limit = 10 * 1024 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new Error('audio too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 // ---------- Story detection (Cloudflare Worker) ----------
 
 const STORY_MIN_CONFIDENCE = 0.75;
@@ -254,6 +345,10 @@ async function handleApi(req, res, url) {
       if (!q) return send(res, 400, { error: 'q is required' });
       if (!searchReady) return send(res, 503, { error: 'Verse search is still being prepared; try again in a few minutes.' });
       return send(res, 200, await search(q, 8));
+    }
+    case 'POST /api/transcribe': {
+      const wav = await readRaw(req);
+      return send(res, 200, { text: await transcribe(wav, url.searchParams.get('context') || '') });
     }
     case 'POST /api/detect-story': {
       const { text } = await readBody(req);
@@ -345,6 +440,8 @@ if (!searchReady) {
     console.log('Verse search ready.');
   })().catch((err) => console.error(`Verse search unavailable: ${err.message}`));
 }
+
+startWhisper();
 
 server.listen(PORT, HOST, () => {
   console.log(`Scripture Listener running at http://localhost:${PORT}`);

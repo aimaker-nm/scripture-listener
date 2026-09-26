@@ -1,4 +1,5 @@
 import { findReferences, formatReference } from './parser.js';
+import { WhisperCapture } from './whisper-capture.js';
 
 const $ = (id) => document.getElementById(id);
 const DUPLICATE_WINDOW_MS = 30_000;
@@ -253,9 +254,7 @@ function setupRecognition() {
       const res = event.results[i];
       const text = res[0].transcript;
       if (res.isFinal) {
-        const final = $('final');
-        final.textContent = `${final.textContent} ${text.trim()}.`.slice(-3000);
-        handleTranscript(text);
+        addFinal(text);
       } else {
         interim += text;
       }
@@ -279,19 +278,107 @@ function setupRecognition() {
   };
 }
 
+function addFinal(text) {
+  const clean = text.trim();
+  if (!clean) return;
+  const final = $('final');
+  final.textContent = `${final.textContent} ${/[.!?]$/.test(clean) ? clean : `${clean}.`}`.slice(-3000);
+  $('transcript').scrollTop = $('transcript').scrollHeight;
+  handleTranscript(clean);
+}
+
+// ---------- Whisper engine ----------
+
+let capture = null;
+const phrases = []; // WAV blobs waiting to be transcribed, in order
+let transcribing = false;
+
+async function transcribeNext() {
+  if (transcribing || !phrases.length) return;
+  transcribing = true;
+  $('interim').textContent = ' …';
+  const wav = phrases.shift();
+  try {
+    // The last words heard help Whisper continue sentences correctly.
+    const context = $('final').textContent.split(/\s+/).slice(-30).join(' ');
+    const res = await fetch(`/api/transcribe?context=${encodeURIComponent(context)}`, { method: 'POST', body: wav });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'transcription failed');
+    addFinal(data.text);
+  } catch (err) {
+    toast(`Whisper: ${err.message}`, true);
+  } finally {
+    transcribing = false;
+    $('interim').textContent = phrases.length ? ' …' : '';
+    transcribeNext();
+  }
+}
+
+function showLevel(level, speaking) {
+  $('level').firstElementChild.style.width = `${Math.round(level * 100)}%`;
+  $('level').classList.toggle('speaking', speaking);
+}
+
+const useWhisper = () => config.speechEngine === 'whisper' && config.whisperReady;
+
+async function startListening() {
+  // Whisper starts a few seconds after the app; get its latest status.
+  config.whisperReady = (await api('/api/config')).whisperReady;
+  if (config.speechEngine === 'whisper' && !config.whisperReady) {
+    toast('Whisper is not ready yet; using Chrome speech recognition for now.', true);
+  }
+  if (useWhisper()) {
+    capture = new WhisperCapture({
+      deviceId: config.micId,
+      onPhrase: (wav) => {
+        phrases.push(wav);
+        transcribeNext();
+      },
+      onLevel: showLevel,
+    });
+    await capture.start();
+    listMicrophones(); // device names are only visible after permission is granted
+  } else {
+    recognition.lang = config.language || 'en-US';
+    recognition.start();
+  }
+}
+
+function stopListening() {
+  if (capture) {
+    capture.stop();
+    capture = null;
+    showLevel(0, false);
+  } else {
+    recognition?.stop();
+  }
+}
+
+async function listMicrophones() {
+  const select = $('mic-select');
+  const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput' && d.deviceId);
+  select.replaceChildren(new Option('System default', ''), ...devices.map((d) => new Option(d.label || 'Microphone', d.deviceId)));
+  select.value = config.micId || '';
+}
+
 function updateListenButton() {
   $('listen').textContent = listening ? '⏹ Stop listening' : '🎤 Start listening';
   $('listen').classList.toggle('listening', listening);
 }
 
-function toggleListening() {
+async function toggleListening() {
   listening = !listening;
   updateListenButton();
   if (listening) {
-    recognition.lang = config.language || 'en-US';
-    recognition.start();
+    try {
+      await startListening();
+    } catch (err) {
+      listening = false;
+      updateListenButton();
+      toast(`Microphone: ${err.message}`, true);
+    }
   } else {
-    recognition.stop();
+    stopListening();
   }
 }
 
@@ -416,6 +503,11 @@ $('settings-form').addEventListener('submit', async (e) => {
   }
   await saveSettings(values);
   if (recognition) recognition.lang = config.language;
+  if (listening) {
+    // Engine or microphone may have changed.
+    stopListening();
+    await startListening();
+  }
   if (values.fullScreenSlide || values.lowerThirdSlide) await setStyle(config.displayStyle);
   toast('Settings saved.');
   checkProPresenter(true);

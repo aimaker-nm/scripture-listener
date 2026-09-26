@@ -6,9 +6,23 @@ paraphrase without a reference** ("all things work together for good…"), looks
 the verse, and shows it on the audience screens through ProPresenter.
 
 ```
- microphone ─► Chrome speech-to-text ─► reference detector ─► verse lookup ─► ProPresenter API ─► screens
-                    (control page)          (parser.js)        (bible-api.com)   (Message layer)
+ microphone ─► Whisper speech-to-text ─► reference / quote / story detection ─► verse ─► ProPresenter ─► screens
+               (on this Mac, any accent)
 ```
+
+### Speech recognition
+
+By default the app uses **Whisper** (OpenAI's large-v3-turbo model via whisper.cpp) running on
+this Mac. It copes with accents far better than Chrome's built-in recognition (Nigerian, Ghanaian,
+Kenyan, South African, Indian, British… English), works offline, and costs nothing. On an Apple
+Silicon Mac each phrase is transcribed in under a second after the speaker pauses.
+
+Misheard book names are also corrected when followed by numbers ("Habakook 2 3", "Tesalonians",
+"Filipians", "Malakai" → the right book), while everyday words ("number 3", "house 3 4") are left alone.
+
+Tips: pick the sound-desk feed under **Settings → Microphone** if you have one (much cleaner than a
+room mic), and watch the level meter next to *Start listening* — it turns green while it hears speech.
+Chrome's built-in engine is still available under **Settings → Speech engine**.
 
 ## What it understands
 
@@ -109,6 +123,7 @@ First time only:
 cd scripture-listener
 npm install
 npm run build-index   # prepares verse search: downloads a ~35 MB model, then ~4 minutes
+npm run setup-whisper # speech recognition for any accent: installs whisper.cpp + ~550 MB model
 npm run make-app      # optional: puts "Scripture Listener" in ~/Applications
 ```
 
@@ -164,6 +179,8 @@ Settings are saved to `config.json` in this folder (ignored by git).
 | `translation`    | `kjv`       | Bible translation (`kjv`, `bsb`, `web`, …)           |
 | `language`       | `en-US`     | Speech recognition accent (en-GB, en-NG, en-GH, …)   |
 | `autoSend`       | `false`     | Show detected verses without clicking                |
+| `speechEngine`   | `whisper`   | `whisper` (this Mac) or `browser` (Chrome built-in)  |
+| `micId`          | `''`        | Microphone device (`''` = system default)            |
 | `storyDetection` | `true`      | Suggest retold Bible stories (needs `aiUrl`/`aiToken`) |
 | `aiUrl`          | —           | URL of the story-detection Worker                    |
 | `aiToken`        | —           | Worker password (config.json only, never shown in the page) |
@@ -179,6 +196,10 @@ Settings are saved to `config.json` in this folder (ignored by git).
 - **References not detected** – check the Transcript panel to see what the speech engine heard,
   try the closest speech language/accent, and use a clean feed from the sound desk rather than a room mic.
 - **Start listening is greyed out** – use Chrome or Edge.
+- **"Whisper is not ready"** – run `npm run setup-whisper`, then restart the app. Whisper takes a few
+  seconds to load after the app starts.
+- **Level meter never moves** – choose the right input under Settings → Microphone, and check
+  System Settings → Privacy & Security → Microphone allows Chrome.
 
 ## Tests
 
