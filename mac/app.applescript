@@ -13,9 +13,12 @@ on serverUp()
 	end try
 end serverUp
 
--- "open -a" needs no macOS automation permission (a "tell application" block would).
+-- Opens the control page as its own app window (Chrome app mode: no tabs or address bar),
+-- with a separate Chrome profile so it keeps its own window size and microphone permission.
+-- "open -na" needs no macOS automation permission (a "tell application" block would).
 on openPage()
-	do shell script "open -a 'Google Chrome' " & pageURL
+	set profileDir to (POSIX path of (path to home folder)) & "Library/Application Support/Scripture Listener/Chrome"
+	do shell script "open -na 'Google Chrome' --args --app=" & pageURL & " --user-data-dir=" & quoted form of profileDir & " --window-size=1280,860 --no-first-run --no-default-browser-check"
 end openPage
 
 on run
@@ -45,6 +48,10 @@ end reopen
 on quit
 	try
 		do shell script "pkill -f " & quoted form of (projectDir & "/server.js")
+	end try
+	try
+		-- Close the app window too (only the Chrome running with our own profile).
+		do shell script "pkill -f 'Application Support/Scripture Listener/Chrome'"
 	end try
 	continue quit
 end quit

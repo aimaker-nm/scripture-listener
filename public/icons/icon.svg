@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a4d8f"/>
+      <stop offset="1" stop-color="#14264a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- open book -->
+  <path d="M256 170 C212 140 150 136 104 150 L104 372 C150 358 212 362 256 392 Z" fill="#f4f1e8"/>
+  <path d="M256 170 C300 140 362 136 408 150 L408 372 C362 358 300 362 256 392 Z" fill="#e6e0cf"/>
+  <path d="M256 170 L256 392" stroke="#b9ae90" stroke-width="6"/>
+  <!-- sound waves -->
+  <g fill="none" stroke="#f5c451" stroke-width="16" stroke-linecap="round">
+    <path d="M206 96 Q256 66 306 96"/>
+    <path d="M178 66 Q256 20 334 66"/>
+  </g>
+  <!-- cross -->
+  <g stroke="#2a4d8f" stroke-width="14" stroke-linecap="round">
+    <path d="M330 200 L330 300"/>
+    <path d="M300 232 L360 232"/>
+  </g>
+</svg>

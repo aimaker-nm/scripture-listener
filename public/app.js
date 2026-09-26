@@ -520,6 +520,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') clearScreen();
 });
 
+navigator.serviceWorker?.register('/sw.js').catch(() => {});
+
 config = await api('/api/config');
 fillSettings();
 setupRecognition();

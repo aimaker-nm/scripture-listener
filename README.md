@@ -127,7 +127,8 @@ npm run setup-whisper # speech recognition for any accent: installs whisper.cpp 
 npm run make-app      # optional: puts "Scripture Listener" in ~/Applications
 ```
 
-Then either double-click **Scripture Listener** (in your user's Applications folder; drag it
+**Scripture Listener** opens in its own app window (no browser tabs or address bar) with its own
+Dock icon. Then either double-click **Scripture Listener** (in your user's Applications folder; drag it
 to the Dock), or run `npm start`. The app starts the server and opens the control page in
 Chrome; quit it from the Dock to stop everything. On first launch macOS may ask to let it
 access the folder the project is in — click **Allow**.

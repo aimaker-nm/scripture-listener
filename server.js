@@ -313,7 +313,14 @@ function broadcast(payload) {
 
 // ---------- HTTP ----------
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const MIME = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json',
+};
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
