@@ -62,7 +62,20 @@ jobs:
             mkdir -p "${{ matrix.whisper_dir }}" && cp wcpp/build/bin/whisper-server "${{ matrix.whisper_dir }}/"
           fi
 
+      # The models and the search index never change between builds, so keep them (saves ~10 min).
+      - name: Restore models and search index
+        id: data-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/whisper
+            data/models
+            data/kjv-index.bin
+            data/bsb-index.bin
+          key: data-v1-${{ hashFiles('data/kjv.json', 'data/bsb.json', 'lib/search.js', 'scripts/setup-whisper.sh') }}
+
       - name: Download Whisper models
+        if: steps.data-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           mkdir -p data/whisper
@@ -70,6 +83,7 @@ jobs:
           curl -fsSL -o data/whisper/ggml-silero-v5.1.2.bin https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
 
       - name: Build the verse search index
+        if: steps.data-cache.outputs.cache-hit != 'true'
         run: npm run build-index
 
       - name: Test
