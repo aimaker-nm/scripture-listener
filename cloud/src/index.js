@@ -1,6 +1,36 @@
-// Scripture Listener story detection. POST /identify {"text": "...transcript..."}
-// with "Authorization: Bearer <APP_TOKEN>" returns {"matches":[{reference, confidence, story}]}.
+// Scripture Listener cloud services, all requiring "Authorization: Bearer <APP_TOKEN>":
+// - POST /identify {"text": "...transcript..."} -> {"matches":[{reference, confidence, story}]}
+//   (which Bible story is the preacher retelling)
+// - POST /transcribe?prompt=... with a WAV body -> {"text": "..."}
+//   (speech to text for computers too slow to run Whisper themselves)
 const MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const WHISPER = '@cf/openai/whisper-large-v3-turbo';
+const MAX_AUDIO_BYTES = 2 * 1024 * 1024; // ~60 s of 16 kHz mono WAV; phrases are ~1-12 s
+
+// Workers AI takes the audio as base64.
+function toBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+async function transcribe(request, env, url) {
+  const audio = new Uint8Array(await request.arrayBuffer());
+  if (!audio.length) return json({ error: 'audio is required' }, 400);
+  if (audio.length > MAX_AUDIO_BYTES) return json({ error: 'audio too long' }, 413);
+  try {
+    const result = await env.AI.run(WHISPER, {
+      audio: toBase64(audio),
+      language: 'en',
+      vad_filter: true,
+      initial_prompt: (url.searchParams.get('prompt') || '').slice(-600) || undefined,
+    });
+    return json({ text: String(result?.text || '').trim() });
+  } catch (err) {
+    console.error('transcribe failed', err);
+    return json({ error: 'transcription failed' }, 502);
+  }
+}
 
 const SYSTEM = `You help a church media team. You receive a few sentences of a live sermon transcript
 (from speech recognition, so expect misheard words). Decide whether the preacher is retelling,
@@ -44,10 +74,13 @@ const json = (body, status = 200) =>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method !== 'POST' || url.pathname !== '/identify') return json({ error: 'not found' }, 404);
+    if (request.method !== 'POST' || !['/identify', '/transcribe'].includes(url.pathname)) {
+      return json({ error: 'not found' }, 404);
+    }
     if (!env.APP_TOKEN || request.headers.get('Authorization') !== `Bearer ${env.APP_TOKEN}`) {
       return json({ error: 'unauthorized' }, 401);
     }
+    if (url.pathname === '/transcribe') return transcribe(request, env, url);
 
     let text;
     try {

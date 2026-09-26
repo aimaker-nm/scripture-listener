@@ -12,9 +12,94 @@
     "build-index": "node scripts/build-index.js",
     "test": "node --test test/*.test.js",
     "make-app": "bash mac/make-app.sh",
-    "setup-whisper": "bash scripts/setup-whisper.sh"
+    "setup-whisper": "bash scripts/setup-whisper.sh",
+    "desktop": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "main": "desktop/main.js",
+  "productName": "Scripture Listener",
+  "author": "aimaker-nm",
+  "build": {
+    "appId": "com.aimaker.scripturelistener",
+    "productName": "Scripture Listener",
+    "files": [
+      "server.js",
+      "lib/**",
+      "public/**",
+      "desktop/**",
+      "package.json",
+      "node_modules/**",
+      "!node_modules/electron{,-builder}/**",
+      "!**/*.map"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "extraResources": [
+      {
+        "from": "data",
+        "to": "data",
+        "filter": [
+          "kjv.json",
+          "bsb.json",
+          "kjv-index.bin",
+          "bsb-index.bin",
+          "models/**",
+          "defaults.json",
+          "whisper/*.bin"
+        ]
+      },
+      {
+        "from": "build/whisper/${platform}-${arch}",
+        "to": "whisper"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Scripture Listener listens to the sermon to find Bible references."
+      },
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "directories": {
+      "output": "dist"
+    }
   }
 }

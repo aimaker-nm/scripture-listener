@@ -301,7 +301,11 @@ async function transcribeNext() {
   try {
     // The last words heard help Whisper continue sentences correctly.
     const context = $('final').textContent.split(/\s+/).slice(-30).join(' ');
-    const res = await fetch(`/api/transcribe?context=${encodeURIComponent(context)}`, { method: 'POST', body: wav });
+    const engine = config.speechEngine === 'cloud' || !config.whisperReady ? 'cloud' : 'whisper';
+    const res = await fetch(`/api/transcribe?engine=${engine}&context=${encodeURIComponent(context)}`, {
+      method: 'POST',
+      body: wav,
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'transcription failed');
     addFinal(data.text);
@@ -319,13 +323,24 @@ function showLevel(level, speaking) {
   $('level').classList.toggle('speaking', speaking);
 }
 
-const useWhisper = () => config.speechEngine === 'whisper' && config.whisperReady;
+// Both Whisper engines record here and send phrases to the server; only "browser" uses Chrome's.
+const useWhisper = () =>
+  (config.speechEngine === 'whisper' && config.whisperReady) ||
+  (config.speechEngine === 'cloud' && config.cloudSpeechAvailable) ||
+  (config.desktop && config.cloudSpeechAvailable); // the desktop app has no Chrome engine to fall back to
 
 async function startListening() {
   // Whisper starts a few seconds after the app; get its latest status.
   config.whisperReady = (await api('/api/config')).whisperReady;
   if (config.speechEngine === 'whisper' && !config.whisperReady) {
-    toast('Whisper is not ready yet; using Chrome speech recognition for now.', true);
+    if (config.cloudSpeechAvailable) {
+      config.speechEngine = 'cloud';
+      toast('Whisper on this computer is not ready yet; using cloud speech for now.');
+    } else if (!config.desktop) {
+      toast('Whisper is not ready yet; using Chrome speech recognition for now.', true);
+    } else {
+      throw new Error('Whisper is still starting; try again in a few seconds.');
+    }
   }
   if (useWhisper()) {
     capture = new WhisperCapture({
@@ -427,6 +442,8 @@ async function loadSlides() {
 
 function fillSettings() {
   const form = $('settings-form');
+  // The desktop app has no Chrome speech engine.
+  if (config.desktop) form.elements.speechEngine.querySelector('option[value="browser"]')?.remove();
   for (const [key, value] of Object.entries(config)) {
     const input = form.elements[key];
     if (!input) continue;

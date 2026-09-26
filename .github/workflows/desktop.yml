@@ -1,0 +1,84 @@
+# Builds the Scripture Listener desktop installers (Windows Setup.exe and Mac .dmg).
+# Runs on demand (Actions tab -> Desktop installers -> Run workflow) or when a v* tag is pushed.
+# Needs repository secrets AI_URL and AI_TOKEN (the Cloudflare Worker) to preset cloud features.
+name: Desktop installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+env:
+  WHISPER_CPP_VERSION: v1.9.4
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            whisper_dir: build/whisper/win32-x64
+          - os: macos-14
+            target: mac
+            whisper_dir: build/whisper/darwin-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build Whisper (self-contained, runs on any machine of this type)
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp wcpp
+          if [ "${{ matrix.target }}" = win ]; then
+            # Baseline AVX2 (all x64 CPUs since ~2013); static MSVC runtime so no extra DLLs are needed.
+            cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON \
+              -DGGML_FMA=ON -DGGML_F16C=ON -DWHISPER_BUILD_TESTS=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+            cmake --build wcpp/build --config Release --target whisper-server -j
+            mkdir -p "${{ matrix.whisper_dir }}" && cp wcpp/build/bin/Release/whisper-server.exe "${{ matrix.whisper_dir }}/"
+          else
+            cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=ON \
+              -DGGML_METAL_EMBED_LIBRARY=ON -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+            cmake --build wcpp/build --config Release --target whisper-server -j
+            mkdir -p "${{ matrix.whisper_dir }}" && cp wcpp/build/bin/whisper-server "${{ matrix.whisper_dir }}/"
+          fi
+
+      - name: Download Whisper models
+        shell: bash
+        run: |
+          mkdir -p data/whisper
+          curl -fsSL -o data/whisper/ggml-large-v3-turbo-q5_0.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin
+          curl -fsSL -o data/whisper/ggml-silero-v5.1.2.bin https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
+
+      - name: Build the verse search index
+        run: npm run build-index
+
+      - name: Test
+        run: npm test
+
+      - name: Preset cloud settings
+        shell: bash
+        env:
+          AI_URL: ${{ secrets.AI_URL }}
+          AI_TOKEN: ${{ secrets.AI_TOKEN }}
+        run: node -e "require('fs').writeFileSync('data/defaults.json', JSON.stringify({ aiUrl: process.env.AI_URL || '', aiToken: process.env.AI_TOKEN || '', storyDetection: true }))"
+
+      - name: Build installer
+        run: npx electron-builder --${{ matrix.target }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scripture-listener-${{ matrix.target }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+          if-no-files-found: error
+          retention-days: 30

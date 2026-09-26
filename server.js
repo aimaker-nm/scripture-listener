@@ -12,7 +12,9 @@ import { findReferences } from './public/parser.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
-const CONFIG_FILE = path.join(ROOT, 'config.json');
+// The desktop app keeps settings in the user's own folder (the app folder is read-only there).
+const CONFIG_FILE = path.join(process.env.SCRIPTURE_CONFIG_DIR || ROOT, 'config.json');
+const DATA_DIR = process.env.SCRIPTURE_DATA_DIR || path.join(ROOT, 'data');
 const PORT = Number(process.env.PORT || 4000);
 const HOST = process.env.HOST || '127.0.0.1';
 const BIBLE_API = process.env.BIBLE_API_URL || 'https://bible-api.com';
@@ -33,7 +35,9 @@ const DEFAULT_CONFIG = {
   // a Message only fills the first text box, so extra boxes show their placeholder.
   fullScreenSlide: '3FB9D028-2B10-4351-87B1-21C4C988EE34', // Black Box > Four Lines
   lowerThirdSlide: '1498A8E4-8CAB-443D-87A1-09316C611175', // Black > Lower 3rd Lyrics
-  speechEngine: 'whisper', // 'whisper' (this Mac, handles accents) or 'browser' (Chrome's built-in)
+  // 'whisper' (on this computer), 'cloud' (Whisper on the Cloudflare Worker, for slower PCs)
+  // or 'browser' (Chrome's built-in; not available in the desktop app).
+  speechEngine: 'whisper',
   micId: '', // audio input device id; '' = system default
   // Story detection (retold Bible stories) via the Cloudflare Worker in cloud/.
   storyDetection: true,
@@ -42,6 +46,16 @@ const DEFAULT_CONFIG = {
 };
 
 let config = { ...DEFAULT_CONFIG };
+// A packaged app can ship preset settings (e.g. the cloud address and key) in data/defaults.json;
+// the user's own config.json still wins.
+const PRESETS_FILE = path.join(DATA_DIR, 'defaults.json');
+if (existsSync(PRESETS_FILE)) {
+  try {
+    config = { ...config, ...JSON.parse(await readFile(PRESETS_FILE, 'utf8')) };
+  } catch (err) {
+    console.warn(`Ignoring unreadable defaults.json: ${err.message}`);
+  }
+}
 if (existsSync(CONFIG_FILE)) {
   try {
     config = { ...config, ...JSON.parse(await readFile(CONFIG_FILE, 'utf8')) };
@@ -53,7 +67,8 @@ if (existsSync(CONFIG_FILE)) {
 // The browser never sees the AI token; it only needs to know whether story detection is set up.
 function publicConfig() {
   const { aiToken, ...rest } = config;
-  return { ...rest, storyDetectionAvailable: Boolean(config.aiUrl && aiToken), whisperReady };
+  const cloud = Boolean(config.aiUrl && aiToken);
+  return { ...rest, storyDetectionAvailable: cloud, cloudSpeechAvailable: cloud, whisperReady, desktop: Boolean(process.versions.electron) };
 }
 
 // ---------- ProPresenter ----------
@@ -187,7 +202,7 @@ async function getVerse(reference, translation) {
 // accents, runs offline on Apple Silicon. Started and stopped with this server.
 
 const WHISPER_PORT = 4001;
-const WHISPER_DIR = path.join(ROOT, 'data', 'whisper');
+const WHISPER_DIR = path.join(DATA_DIR, 'whisper');
 const WHISPER_MODEL = path.join(WHISPER_DIR, 'ggml-large-v3-turbo-q5_0.bin');
 const VAD_MODEL = path.join(WHISPER_DIR, 'ggml-silero-v5.1.2.bin');
 // Nudges Whisper towards Bible spellings ("Habakkuk", "1 Thessalonians 5:17").
@@ -201,8 +216,11 @@ let whisperProc = null;
 let whisperReady = false;
 let shuttingDown = false;
 
+// Bundled with the desktop app (SCRIPTURE_WHISPER_BIN), or installed with Homebrew.
 const whisperBin = () =>
-  ['/opt/homebrew/bin/whisper-server', '/usr/local/bin/whisper-server'].find((p) => existsSync(p));
+  [process.env.SCRIPTURE_WHISPER_BIN, '/opt/homebrew/bin/whisper-server', '/usr/local/bin/whisper-server'].find(
+    (p) => p && existsSync(p),
+  );
 
 function startWhisper() {
   const bin = whisperBin();
@@ -240,8 +258,10 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     process.exit(0);
   });
 }
+process.on('exit', stopWhisper);
 
-async function transcribe(wav, context) {
+async function transcribe(wav, context, engine = config.speechEngine) {
+  if (engine === 'cloud') return transcribeInCloud(wav, context);
   if (!whisperReady) throw new Error('Whisper is still starting');
   const form = new FormData();
   form.append('file', new Blob([wav], { type: 'audio/wav' }), 'speech.wav');
@@ -255,6 +275,21 @@ async function transcribe(wav, context) {
     signal: AbortSignal.timeout(30000),
   });
   if (!res.ok) throw new Error(`Whisper failed (${res.status})`);
+  const text = String((await res.json()).text || '').replace(/\s+/g, ' ').trim();
+  return HALLUCINATIONS.test(text) ? '' : text;
+}
+
+// Same Whisper model, run on the Cloudflare Worker (cloud/) instead of this computer.
+async function transcribeInCloud(wav, context) {
+  if (!config.aiUrl || !config.aiToken) throw new Error('Cloud speech is not set up (aiUrl/aiToken)');
+  const prompt = encodeURIComponent(`${WHISPER_VOCAB} ${context}`.slice(-600));
+  const res = await fetch(`${config.aiUrl.replace(/\/$/, '')}/transcribe?prompt=${prompt}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'audio/wav', Authorization: `Bearer ${config.aiToken}` },
+    body: wav,
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`Cloud speech failed (${res.status})`);
   const text = String((await res.json()).text || '').replace(/\s+/g, ' ').trim();
   return HALLUCINATIONS.test(text) ? '' : text;
 }
@@ -355,7 +390,8 @@ async function handleApi(req, res, url) {
     }
     case 'POST /api/transcribe': {
       const wav = await readRaw(req);
-      return send(res, 200, { text: await transcribe(wav, url.searchParams.get('context') || '') });
+      const engine = url.searchParams.get('engine') || undefined;
+      return send(res, 200, { text: await transcribe(wav, url.searchParams.get('context') || '', engine) });
     }
     case 'POST /api/detect-story': {
       const { text } = await readBody(req);
@@ -449,6 +485,20 @@ if (!searchReady) {
 }
 
 startWhisper();
+
+/** Stops the server and Whisper (used by the desktop app before quitting). */
+export function shutdown() {
+  stopWhisper();
+  for (const res of displayClients) res.end();
+  const closed = new Promise((resolve) => server.close(() => resolve()));
+  server.closeAllConnections();
+  return closed;
+}
+
+export const ready = new Promise((resolve, reject) => {
+  server.once('error', reject);
+  server.once('listening', resolve);
+});
 
 server.listen(PORT, HOST, () => {
   console.log(`Scripture Listener running at http://localhost:${PORT}`);
