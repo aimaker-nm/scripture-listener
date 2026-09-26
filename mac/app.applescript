@@ -20,8 +20,11 @@ end openPage
 
 on run
 	if not serverUp() then
-		do shell script "cd " & quoted form of projectDir & " && nohup " & quoted form of nodePath & " " & quoted form of (projectDir & "/server.js") & " < /dev/null > /tmp/scripture-listener.log 2>&1 &"
-		repeat 40 times
+		-- Only the server goes to the background, with all its input/output redirected;
+		-- otherwise "do shell script" waits forever for it and the page never opens.
+		do shell script "cd " & quoted form of projectDir & "; " & quoted form of nodePath & " " & quoted form of (projectDir & "/server.js") & " < /dev/null > /tmp/scripture-listener.log 2>&1 &"
+		-- Up to 2 minutes: on first launch macOS may ask for folder access before the server can start.
+		repeat 240 times
 			if serverUp() then exit repeat
 			delay 0.5
 		end repeat
