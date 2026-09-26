@@ -241,6 +241,7 @@ in `cloud/.admin-token` (git-ignored).
 
 To build the Mac app locally, put a self-contained `whisper-server` in `build/whisper/darwin-arm64/`
 (see the workflow) and run `npx electron-builder --mac` from a folder that isn't synced to iCloud.
+To just update the app on this Mac (about 20 seconds, no installer or GitHub): `npm run install-local`.
 
 ### Settings (`config.json`)
 

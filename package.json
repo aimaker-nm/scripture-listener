@@ -15,7 +15,8 @@
     "setup-whisper": "bash scripts/setup-whisper.sh",
     "desktop": "electron .",
     "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dist:win": "electron-builder --win",
+    "install-local": "bash scripts/install-local.sh"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
