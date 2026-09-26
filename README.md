@@ -1,244 +1,231 @@
-# Scripture Listener for ProPresenter
+# Scripture Listener
 
-Listens to the preacher, picks out Bible references as they are spoken
-("turn with me to John chapter three verse sixteen") **and verses they quote or
-paraphrase without a reference** ("all things work together for good…"), looks up
-the verse, and shows it on the audience screens through ProPresenter.
+Scripture Listener listens to the sermon and puts Bible verses on your **ProPresenter** screens
+as the preacher mentions them: spoken references ("turn with me to John chapter three verse
+sixteen"), verses quoted without a reference ("all things work together for good…"), and even
+Bible stories retold in the preacher's own words. It understands any English accent.
 
-```
- microphone ─► Whisper speech-to-text ─► reference / quote / story detection ─► verse ─► ProPresenter ─► screens
-               (on this Mac, any accent)
-```
+## ⬇️ Download
 
-### Speech recognition
+**[Download Scripture Listener](https://scripture-listener-ai.holarwhaley2.workers.dev/)**
 
-By default the app uses **Whisper** (OpenAI's large-v3-turbo model via whisper.cpp) running on
-this Mac. It copes with accents far better than Chrome's built-in recognition (Nigerian, Ghanaian,
-Kenyan, South African, Indian, British… English), works offline, and costs nothing. On an Apple
-Silicon Mac each phrase is transcribed in under a second after the speaker pauses.
+| Computer | File | Size |
+|---|---|---|
+| **Mac** with Apple Silicon (M1 or newer), macOS 12+ | [ScriptureListener-1.0.0-mac-arm64.dmg](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.0.0-mac-arm64.dmg) | 752 MB |
+| **Windows** 10 or 11, 64-bit | [ScriptureListener-1.0.0-win-x64-setup.exe](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.0.0-win-x64-setup.exe) | 707 MB |
 
-Misheard book names are also corrected when followed by numbers ("Habakook 2 3", "Tesalonians",
-"Filipians", "Malakai" → the right book), while everyday words ("number 3", "house 3 4") are left alone.
+The download page always has the newest version. Everything is included: the Bibles, verse search,
+and the speech recognition model. There is nothing else to install.
 
-Tips: pick the sound-desk feed under **Settings → Microphone** if you have one (much cleaner than a
-room mic), and watch the level meter next to *Start listening* — it turns green while it hears speech.
-Chrome's built-in engine is still available under **Settings → Speech engine**.
+You also need **ProPresenter 7.9 or newer** (on the same computer or the same network) and a
+microphone, ideally a feed from the sound desk.
 
-## What it understands
+## Install
 
-| Spoken / transcribed                         | Shows                    |
-|----------------------------------------------|--------------------------|
-| "John chapter three verse sixteen"           | John 3:16                |
-| "First Corinthians thirteen four to seven"   | 1 Corinthians 13:4-7     |
-| "Second Timothy 3 verses 16 and 17"          | 2 Timothy 3:16-17        |
-| "Psalm one hundred and nineteen verse 105"   | Psalms 119:105           |
-| "Psalm twenty three"                         | Psalms 23                |
-| "Revelation chapter 21"                      | Revelation 21            |
-| "John 316" (speech engine glued the numbers) | John 3:16                |
-| "…and verse seventeen" / "next verse"        | follows the last verse   |
+### Mac
 
-Ordinary speech like "John and Mark went…" or "I'll mark 3 things" is ignored:
-a book name must be followed by chapter **and** verse, or by the word "chapter".
+1. Open the downloaded `.dmg` and drag **Scripture Listener** into **Applications**.
+2. The first time only: in Applications, **right-click** Scripture Listener → **Open** → **Open**.
+   (macOS shows a warning because the app isn't signed with a paid Apple developer certificate.
+   If there is no *Open* button, go to System Settings → Privacy & Security and click **Open Anyway**.)
+3. Allow the **microphone** when asked.
 
-### Quotes and paraphrases (no reference said)
+### Windows
 
-When the preacher quotes a verse without naming it, the app suggests it in the
-Detected list with a yellow **quote** badge, e.g.
+1. Run the downloaded `setup.exe`.
+2. If **"Windows protected your PC"** appears, click **More info** → **Run anyway**
+   (the installer isn't signed with a paid Microsoft certificate yet).
+3. Follow the installer. It adds a desktop shortcut.
+4. Allow the **microphone** if Windows asks.
 
-- "remember that all things work together for good for those who love God" → Romans 8:28
-- "love is patient, love is kind" (modern wording) → 1 Corinthians 13:4
-- "the joy of the Lord is your strength" (a line from a long verse) → Nehemiah 8:10
+## Set up ProPresenter (one time)
 
-Quotes are always suggestions: they never go on screen without a click, even with Auto-send on.
-Common church phrases ("in the name of the Lord Jesus Christ", "let us bow our heads and pray")
-are ignored.
-
-### Retold Bible stories (AI)
-
-When the preacher tells a Bible story in their own words, without names or a reference, the app
-asks an AI model which passage it is and suggests it with a blue **story** badge, e.g.
-
-- "God sent his prophet to tell the man he was going to die… then sent him back to say he would
-  not die" → 2 Kings 20:1-6 (Hezekiah's illness and recovery)
-- "the little boy killed the giant with a stone and a sling" → 1 Samuel 17:48-51
-- "the woman who had been bleeding for twelve years touched the hem of his garment" → Matthew 9:20-22
-
-It checks the last ~80 words every few seconds while listening, and updates its guess as more of
-the story is told. Like quotes, stories never go on screen without a click. It needs internet;
-everything else keeps working without it. Turn it off in Settings.
-
-This uses a small Cloudflare Worker (`cloud/`) running Llama 3.3 70B on Workers AI, within
-Cloudflare's free daily allowance for normal use. To set it up in your own Cloudflare account:
-
-```bash
-cd cloud
-npx wrangler deploy                 # prints the Worker URL
-npx wrangler secret put APP_TOKEN   # paste a long random password
-```
-
-Then add to `config.json`: `"aiUrl": "<Worker URL>"` and `"aiToken": "<that password>"`, and restart.
-
-### Search by words
-
-Type words from a verse in the box under **On screen now** (e.g. `love is patient`) and press
-Enter to get the closest verses. Typing a reference (`Romans 8:28-30`) shows it directly.
-
-Search runs on this computer with a small AI model (no internet or account needed). It matches
-by meaning across the KJV and the modern-English Berean Standard Bible, so KJV and NIV-style
-wording both work.
-
-## Requirements
-
-- **ProPresenter 7.9 or newer** (it has the network API).
-- **Node.js 18+** on the computer that runs this app.
-- **Google Chrome or Microsoft Edge** (their built-in speech recognition is used; it needs internet).
-- A microphone or an audio feed from the sound desk into the computer.
-
-## Desktop app (Mac and Windows)
-
-Scripture Listener is also a normal desktop app with its own window, built with Electron:
-
-- **Mac** (Apple Silicon, M1 or newer): `Scripture Listener-<version>-arm64.dmg` — open it and drag
-  the app to Applications.
-- **Windows** (64-bit): `Scripture Listener Setup <version>.exe` — run it and follow the steps.
-
-Everything is inside the app (Bibles, search, Whisper speech recognition and its model); nothing
-else needs installing. Settings are kept per user (Mac: `~/Library/Application Support/Scripture
-Listener/`, Windows: `%APPDATA%\Scripture Listener\`).
-
-The installers are not signed with an Apple/Microsoft developer certificate yet, so the first launch shows a warning:
-
-- **Mac:** "cannot be opened because the developer cannot be verified" → right-click the app →
-  **Open** → **Open**. (Or System Settings → Privacy & Security → **Open Anyway**.)
-- **Windows:** "Windows protected your PC" → **More info** → **Run anyway**.
-
-**Speech on Windows:** Whisper runs on the computer's processor. On a slower PC, choose
-**Settings → Speech engine → Whisper in the cloud**, which sends the audio to the Cloudflare Worker
-(`cloud/`) instead — same accuracy, needs internet.
-
-### Building the installers
-
-GitHub Actions builds both (Actions → **Desktop installers** → *Run workflow*, or push a `v*` tag);
-download them from the run's *Artifacts*. The workflow needs the repository secrets `AI_URL` and
-`AI_TOKEN` to preset cloud features. To build the Mac app locally:
-
-```bash
-npm run setup-whisper && npm run build-index   # data the app bundles
-# a self-contained whisper-server must be in build/whisper/darwin-arm64/ (see the workflow)
-npx electron-builder --mac                      # build outside an iCloud-synced folder
-npm run desktop                                 # or run the desktop app from source
-```
-
-## 1. Set up ProPresenter (one time)
-
-1. **Enable the API:** ProPresenter → Settings → **Network** → tick **Enable Network**.
-   Note the **IP address** and **Port** shown there.
-2. **Create the Message that displays the verse:**
-   - Open the **Messages** panel (Show → Messages) and click **+** to create a message.
+1. **Turn on the network API:** ProPresenter → Settings → **Network** → tick **Enable Network**.
+   Note the **Port** number shown there (and the IP address, if ProPresenter is on another computer).
+2. **Create the Message that shows the verse:**
+   - Open the **Messages** panel (Show → Messages) and click **+**.
    - Name it exactly `Scripture`.
-   - In the message text, type two text tokens, for example:
+   - As the message text, type:
      ```
      {Reference}
      {Verse}
      ```
-     ProPresenter turns `{Verse}` and `{Reference}` into text tokens.
-   - Pick a theme slide with a **single text box**, e.g. Black Box → **Four Lines**.
-     Avoid the built-in *Scripture* slides: their separate "Reference" box can't be filled
-     by a Message, so it shows the placeholder word "Reference".
-     Make the text box big enough and turn on text auto-shrink so long passages fit.
-3. Make sure your audience screen's **Look** shows the **Messages** layer.
+     ProPresenter turns `{Reference}` and `{Verse}` into fields the app fills in.
+   - Pick a theme slide with **one text box**, e.g. *Black Box → Four Lines*. Avoid ProPresenter's
+     built-in *Scripture* slides: their second "Reference" box can't be filled by a Message and
+     shows the word "Reference". Turn on text shrink-to-fit so long passages fit.
+3. Make sure the audience screen's **Look** includes the **Messages** layer.
 
-You can use different names — just enter them in the app's Settings.
+## First launch
 
-## 2. Install and run the app
+1. Open **Scripture Listener** and click **Settings** at the bottom.
+2. Enter ProPresenter's **port** (and IP address if it's on another computer), click **Save**,
+   then **Test connection**. The pill at the top turns green, and it warns you if the `Scripture`
+   message or its fields are missing.
+3. Choose your **Microphone** (the sound-desk input if you have one).
+4. Click **🎤 Start listening**. The level meter beside it turns green when it hears speech, and
+   the words appear in the **Transcript** panel.
 
-First time only:
+## Using it during a service
 
-```bash
-cd scripture-listener
-npm install
-npm run build-index   # prepares verse search: downloads a ~35 MB model, then ~4 minutes
-npm run setup-whisper # speech recognition for any accent: installs whisper.cpp + ~550 MB model
-npm run make-app      # optional: puts "Scripture Listener" in ~/Applications
-```
+- **Detected references:** everything the app picks up appears on the right with a preview.
+  Click **Show** to put it on screen, or **Dismiss**.
+  - No badge: the preacher said the reference.
+  - Yellow **quote** badge: they quoted or paraphrased a verse without naming it.
+  - Blue **story** badge: they retold a Bible story (identified by AI).
+- **Auto-send:** puts spoken references on screen immediately, with no click. Quotes and stories
+  always wait for a click, because they are suggestions.
+- **Prev / Next verse** (or ← / → keys) steps through the passage. **Clear screen** (or Esc) hides it.
+- **Full screen / Lower third** (top bar) switches the look, even while a verse is showing.
+  Choose which ProPresenter slide each style uses in Settings.
+- **Search box:** type a reference (`Romans 8:28-30`) or words from a verse (`love is patient`)
+  and press Enter.
+- **Translation:** KJV or BSB (a modern translation) work offline. WEB, ASV, BBE, Darby and YLT need internet.
+- **Stage display:** tick *Also send to stage display* in Settings to show the verse to the preacher and band too.
 
-**Scripture Listener** opens in its own app window (no browser tabs or address bar) with its own
-Dock icon. Then either double-click **Scripture Listener** (in your user's Applications folder; drag it
-to the Dock), or run `npm start`. The app starts the server and opens the control page in
-Chrome; quit it from the Dock to stop everything. On first launch macOS may ask to let it
-access the folder the project is in — click **Allow**.
+### What it understands
 
-Open **http://localhost:4000** in Chrome **on the same computer** (Chrome only
-allows the microphone on `localhost` or HTTPS pages).
+| The preacher says | Shows |
+|---|---|
+| "John chapter three verse sixteen" | John 3:16 |
+| "First Corinthians thirteen four to seven" | 1 Corinthians 13:4-7 |
+| "Psalm one hundred and nineteen verse 105" | Psalms 119:105 |
+| "Revelation chapter 21" | Revelation 21 |
+| "…and verse seventeen" / "next verse" | continues from the last verse |
+| "remember, all things work together for good for those who love God" | Romans 8:28 (quote) |
+| "love is patient, love is kind" | 1 Corinthians 13:4 (quote, modern wording) |
+| "God sent his prophet to tell the man he would die… then sent him back to say he would live" | 2 Kings 20:1-6 (story) |
 
-1. Open **Settings**, enter ProPresenter's IP and port, click **Save**, then **Test connection**.
-   It tells you if the `Scripture` message or its tokens are missing.
-2. Click **Start listening** and allow the microphone.
-3. As references are spoken they appear under **Detected references** with a preview.
-   Click **Show** to put one on screen.
-   - Turn on **Auto-send** to put verses on screen immediately with no operator.
-4. **Full screen / Lower third** (top bar) switches how verses look; a verse already on screen
-   changes immediately. Choose which ProPresenter theme slide each style uses in **Settings**
-   (defaults: Black Box → Four Lines, and Black → Lower 3rd Lyrics).
-5. **Prev / Next verse** (or ← / → keys) steps through the passage; **Clear screen** (or Esc) hides it.
-6. Type a reference in the box (e.g. `Romans 8:28-30`) to show something manually.
+Everyday talk ("John and Mark went…", "number 3", "let us bow our heads and pray") is ignored.
+Misheard book names followed by numbers are corrected ("Habakook 2 3" → Habakkuk 2:3).
 
-ProPresenter can be on a different computer — just enter its IP address.
+## Speech recognition
 
-### Other outputs
+Scripture Listener uses **Whisper**, OpenAI's speech recognition model. It handles accents far
+better than a browser (Nigerian, Ghanaian, Kenyan, South African, Indian, British… English).
+Choose the engine in **Settings → Speech engine**:
 
-- **Stage display:** tick "Also send to stage display" to show the verse to the preacher/band too.
-- **Web display:** `http://localhost:4000/display` is a transparent lower-third page that
-  follows whatever is shown. Use it as a Browser Source in OBS/vMix, or as Web content in ProPresenter.
-  To view it from another computer, start the app with `HOST=0.0.0.0 npm start`.
+- **Whisper on this computer** (default): free, works offline. Fast on Apple Silicon Macs and
+  on Windows PCs with a modern processor.
+- **Whisper in the cloud**: the same accuracy for slower computers. Needs internet.
 
-## Bible translations
+Tip: a clean feed from the sound desk makes the biggest difference to accuracy.
 
-KJV and BSB (Berean Standard Bible, a modern translation released to the public domain in 2023)
-are stored in `data/` and work offline. WEB, ASV, BBE, Darby and YLT come from
-[bible-api.com](https://bible-api.com) and need internet. Copyrighted translations (NIV, NKJV, ESV…)
-are not available through it for licensing reasons.
+## Internet and privacy
 
-## Settings
-
-Settings are saved to `config.json` in this folder (ignored by git).
-
-| Setting          | Default     | Meaning                                              |
-|------------------|-------------|------------------------------------------------------|
-| `ppHost`         | `127.0.0.1` | ProPresenter computer's IP                           |
-| `ppPort`         | `50001`     | ProPresenter Network port                            |
-| `messageName`    | `Scripture` | ProPresenter Message to trigger                      |
-| `referenceToken` | `Reference` | Token that receives "John 3:16 (KJV)"                |
-| `textToken`      | `Verse`     | Token that receives the verse text                   |
-| `sendToMessage`  | `true`      | Show on the audience screen                          |
-| `sendToStage`    | `false`     | Also send to the stage display message               |
-| `translation`    | `kjv`       | Bible translation (`kjv`, `bsb`, `web`, …)           |
-| `language`       | `en-US`     | Speech recognition accent (en-GB, en-NG, en-GH, …)   |
-| `autoSend`       | `false`     | Show detected verses without clicking                |
-| `speechEngine`   | `whisper`   | `whisper` (this Mac) or `browser` (Chrome built-in)  |
-| `micId`          | `''`        | Microphone device (`''` = system default)            |
-| `storyDetection` | `true`      | Suggest retold Bible stories (needs `aiUrl`/`aiToken`) |
-| `aiUrl`          | —           | URL of the story-detection Worker                    |
-| `aiToken`        | —           | Worker password (config.json only, never shown in the page) |
-| `displayStyle`   | `fullScreen`| `fullScreen` or `lowerThird`                         |
-| `fullScreenSlide`| Four Lines  | Theme slide uuid used for full screen                |
-| `lowerThirdSlide`| Lower 3rd Lyrics | Theme slide uuid used for lower third           |
+- **Works offline:** speech recognition (on this computer), spoken references, quotes, verse
+  search, and KJV/BSB text.
+- **Uses the internet:** story detection (the last ~80 words of transcript are sent to a
+  Cloudflare Worker), cloud speech (audio is sent when that engine is chosen), and the online
+  translations. Nothing is stored in the cloud.
 
 ## Troubleshooting
 
-- **"ProPresenter: not connected"** – check Network is enabled, the IP/port match, and a firewall isn't blocking the port.
-- **Verse doesn't appear on screen** – make sure the Message is named exactly as in Settings,
-  its tokens are `{Verse}` and `{Reference}`, and the audience Look includes the Messages layer.
-- **References not detected** – check the Transcript panel to see what the speech engine heard,
-  try the closest speech language/accent, and use a clean feed from the sound desk rather than a room mic.
-- **Start listening is greyed out** – use Chrome or Edge.
-- **"Whisper is not ready"** – run `npm run setup-whisper`, then restart the app. Whisper takes a few
-  seconds to load after the app starts.
-- **Level meter never moves** – choose the right input under Settings → Microphone, and check
-  System Settings → Privacy & Security → Microphone allows Chrome.
+- **"ProPresenter: not connected"**: check Network is enabled in ProPresenter, the port in Settings
+  matches, and a firewall isn't blocking it.
+- **Verse doesn't appear on screen**: the Message must be named exactly `Scripture`, contain
+  `{Reference}` and `{Verse}`, and the audience Look must include the Messages layer.
+- **Word "Reference" shows on screen**: the Message uses a slide with a second text box. Pick a
+  single-text-box slide (see *Set up ProPresenter*).
+- **Level meter never moves**: pick the right input under Settings → Microphone. On Mac, check
+  System Settings → Privacy & Security → Microphone allows Scripture Listener.
+- **Transcript is slow on Windows**: switch Settings → Speech engine to *Whisper in the cloud*.
+- **References not detected**: look at the Transcript panel to see what was heard. Better audio
+  (a sound-desk feed) fixes most problems.
+- **"Port 4000 is already in use"**: another copy of Scripture Listener is running. Close it first.
 
-## Tests
+---
+
+## For developers
+
+```
+ microphone ─► Whisper ─► reference / quote / story detection ─► verse lookup ─► ProPresenter API ─► screens
+```
+
+| Path | What it is |
+|---|---|
+| `server.js` | Local HTTP server: control page, ProPresenter API, verse lookup, Whisper process, cloud calls |
+| `public/` | Control page (`app.js`), reference parser (`parser.js`), mic capture (`whisper-capture.js`) |
+| `lib/search.js` | Local verse search by meaning (bge-small embeddings) and quote detection |
+| `data/` | KJV and BSB text (`kjv.json`, `bsb.json`); generated indexes and models are git-ignored |
+| `desktop/main.js` | Electron app (Mac and Windows) |
+| `cloud/` | Cloudflare Worker: story detection, cloud speech, download page |
+| `mac/` | Older macOS launcher for running from source (`npm run make-app`) |
+| `.github/workflows/desktop.yml` | Builds the installers |
+
+### Run from source
+
+Needs Node.js 20+ (and on Mac, Homebrew for Whisper).
 
 ```bash
+npm install
+npm run build-index     # verse search index (~35 MB model download, a few minutes)
+npm run setup-whisper   # Mac: whisper.cpp + large-v3-turbo model (~550 MB)
+npm run desktop         # the desktop app, or: npm start  (then open http://localhost:4000 in Chrome)
 npm test
 ```
+
+When run from source, settings are saved in `config.json` in the project folder. In the desktop
+app they are saved in the user's app-data folder (Mac: `~/Library/Application Support/Scripture Listener/`,
+Windows: `%APPDATA%\Scripture Listener\`).
+
+### Cloudflare Worker (`cloud/`)
+
+It provides `POST /identify` (story detection, Llama 3.3 70B), `POST /transcribe` (Whisper large-v3-turbo),
+the public download page `GET /`, and `/download/<file>` from the R2 bucket `scripture-listener-downloads`.
+
+```bash
+cd cloud
+npx wrangler r2 bucket create scripture-listener-downloads
+npx wrangler deploy
+npx wrangler secret put APP_TOKEN     # key used by the app (/identify, /transcribe)
+npx wrangler secret put ADMIN_TOKEN   # a different key, only for uploading installers
+```
+
+Put the Worker URL and `APP_TOKEN` in `config.json` as `aiUrl` and `aiToken`. Keep `ADMIN_TOKEN`
+in `cloud/.admin-token` (git-ignored).
+
+### Releasing a new version
+
+1. Bump `version` in `package.json`, then commit and push.
+2. Build the installers: GitHub → **Actions → Desktop installers → Run workflow** (or push a `v*`
+   tag). It builds Whisper from source, the search index, runs the tests, and produces the Mac
+   `.dmg` and Windows `setup.exe` as run artifacts. The repository secrets `AI_URL` and `AI_TOKEN`
+   preset the cloud features.
+3. Download the artifacts (`gh run download <run-id>`), then upload them to the download page:
+   ```bash
+   node scripts/upload-installers.mjs path/to/*.dmg path/to/*.exe
+   ```
+   The page shows the newest upload for each platform automatically. Update the file names in
+   the Download table above.
+
+To build the Mac app locally, put a self-contained `whisper-server` in `build/whisper/darwin-arm64/`
+(see the workflow) and run `npx electron-builder --mac` from a folder that isn't synced to iCloud.
+
+### Settings (`config.json`)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `ppHost` | `127.0.0.1` | ProPresenter computer's IP |
+| `ppPort` | `50001` | ProPresenter Network port |
+| `messageName` | `Scripture` | ProPresenter Message to trigger |
+| `referenceToken` / `textToken` | `Reference` / `Verse` | Message fields for the reference and verse text |
+| `sendToMessage` / `sendToStage` | `true` / `false` | Audience screen / stage display |
+| `translation` | `kjv` | `kjv`, `bsb` (offline) or `web`, `asv`, `bbe`, `darby`, `ylt` (online) |
+| `autoSend` | `false` | Show spoken references without clicking |
+| `speechEngine` | `whisper` | `whisper` (this computer), `cloud`, or `browser` (Chrome; source only) |
+| `micId` | `''` | Microphone device (`''` = system default) |
+| `language` | `en-US` | Accent for the Chrome engine only |
+| `displayStyle` | `fullScreen` | `fullScreen` or `lowerThird` |
+| `fullScreenSlide` / `lowerThirdSlide` | Four Lines / Lower 3rd Lyrics | ProPresenter theme slide uuids |
+| `storyDetection` | `true` | Suggest retold Bible stories |
+| `aiUrl` / `aiToken` | — | Cloudflare Worker URL and key (never sent to the page) |
+
+The desktop app can ship presets in `data/defaults.json`. The user's own settings still take priority.
+
+### Bible text
+
+KJV (public domain) and the Berean Standard Bible (dedicated to the public domain in 2023) are
+bundled; see `scripts/convert-kjv.js` and `scripts/convert-bsb.js` for their sources. Other
+translations come from [bible-api.com](https://bible-api.com). Copyrighted translations (NIV,
+NKJV, ESV…) are not included for licensing reasons.
