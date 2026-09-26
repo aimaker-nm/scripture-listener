@@ -1,0 +1,11 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Story detection for Scripture Listener: identifies the Bible passage a preacher is
+  // retelling in their own words, using Workers AI. The local app calls POST /identify.
+  "name": "scripture-listener-ai",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "ai": { "binding": "AI" },
+  "observability": { "enabled": true }
+  // Secret APP_TOKEN (wrangler secret put APP_TOKEN) must match "aiToken" in the app's config.json.
+}

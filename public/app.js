@@ -2,6 +2,9 @@ import { findReferences, formatReference } from './parser.js';
 
 const $ = (id) => document.getElementById(id);
 const DUPLICATE_WINDOW_MS = 30_000;
+const STORY_DUPLICATE_WINDOW_MS = 10 * 60_000; // a story is often told over several minutes
+const STORY_MIN_WORDS = 12;
+const STORY_MIN_GAP_MS = 5_000;
 
 let config = {};
 let recognition = null;
@@ -98,14 +101,17 @@ function addToQueue(ref) {
       <button data-act="dismiss">Dismiss</button>
     </div>`;
   li.querySelector('.q-ref').textContent = ref.reference;
-  if (ref.kind === 'quote') {
+  if (ref.kind === 'quote' || ref.kind === 'story') {
     const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = `quote ${Math.round(ref.score * 100)}%`;
-    badge.title = 'The speaker quoted or paraphrased this verse without saying the reference';
+    badge.className = `badge ${ref.kind}`;
+    badge.textContent = `${ref.kind} ${Math.round(ref.score * 100)}%`;
+    badge.title =
+      ref.kind === 'quote'
+        ? 'The speaker quoted or paraphrased this verse without saying the reference'
+        : 'The speaker is retelling this Bible story (identified by AI)';
     li.querySelector('.q-ref').append(badge);
   }
-  li.querySelector('.q-spoken').textContent = `heard: “${ref.spoken}”`;
+  li.querySelector('.q-spoken').textContent = ref.kind === 'story' ? `story: ${ref.story}` : `heard: “${ref.spoken}”`;
   queue.prepend(li);
   while (queue.children.length > 30) queue.lastElementChild.remove();
 
@@ -119,22 +125,79 @@ function addToQueue(ref) {
     if (act === 'dismiss') li.remove();
   });
 
-  // Quotes are guesses, so they always wait for the operator; spoken references can go straight up.
-  if (config.autoSend && ref.kind !== 'quote') show(ref).then((ok) => ok && li.classList.add('sent'));
+  // Quotes and stories are guesses, so they always wait for the operator;
+  // spoken references can go straight up.
+  if (config.autoSend && !ref.kind) show(ref).then((ok) => ok && li.classList.add('sent'));
+  return li;
 }
 
 function queueOnce(ref) {
   const now = Date.now();
-  if (now - (recent.get(ref.reference) || 0) < DUPLICATE_WINDOW_MS) return;
+  const window = ref.kind === 'story' ? STORY_DUPLICATE_WINDOW_MS : DUPLICATE_WINDOW_MS;
+  if (now - (recent.get(ref.reference) || 0) < window) return null;
   recent.set(ref.reference, now);
-  addToQueue(ref);
+  return addToQueue(ref);
+}
+
+// The last ~80 words heard, so a story told across several sentences can be recognised.
+let storyText = '';
+let storyBusy = false;
+let storyPending = false; // new speech arrived while a check was running or too soon after one
+let lastStoryCheck = 0;
+let storyItems = []; // [{ reference, li }] from the latest story check
+
+async function checkStory() {
+  if (!config.storyDetection || !config.storyDetectionAvailable) return;
+  if (storyText.split(/\s+/).filter(Boolean).length < STORY_MIN_WORDS) return;
+  const wait = STORY_MIN_GAP_MS - (Date.now() - lastStoryCheck);
+  if (storyBusy || wait > 0) {
+    // Check again once free, so the newest sentences (often the end of the story) are included.
+    if (!storyPending) {
+      storyPending = true;
+      setTimeout(() => {
+        storyPending = false;
+        checkStory();
+      }, Math.max(wait, 500));
+    }
+    return;
+  }
+  storyBusy = true;
+  lastStoryCheck = Date.now();
+  try {
+    const stories = await api('/api/detect-story', { method: 'POST', body: { text: storyText } });
+    if (stories.length) {
+      // More of the story has been heard; drop earlier guesses it no longer supports
+      // (unless the operator already showed them).
+      const keep = new Set(stories.map((s) => s.reference));
+      for (const { reference, li } of storyItems) {
+        if (!keep.has(reference) && !li.classList.contains('sent')) {
+          li.remove();
+          recent.delete(reference);
+        }
+      }
+      storyItems = storyItems.filter(({ li }) => li.isConnected);
+      for (const s of stories) {
+        const li = queueOnce({ ...s, kind: 'story' });
+        if (li) storyItems.push({ reference: s.reference, li });
+      }
+    }
+  } catch {
+    // needs internet; spoken references and quotes keep working without it
+  } finally {
+    storyBusy = false;
+  }
 }
 
 async function handleTranscript(text) {
   const result = findReferences(text, context);
   context = result.context;
   result.references.forEach(queueOnce);
-  if (result.references.length) return;
+  if (result.references.length) {
+    storyText = ''; // the reference was said, no need to guess the story
+    return;
+  }
+  storyText = `${storyText} ${text}`.split(/\s+/).slice(-80).join(' ');
+  checkStory();
 
   // No reference said out loud: check whether a verse was quoted or paraphrased.
   try {

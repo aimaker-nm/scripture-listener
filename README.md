@@ -39,6 +39,31 @@ Quotes are always suggestions: they never go on screen without a click, even wit
 Common church phrases ("in the name of the Lord Jesus Christ", "let us bow our heads and pray")
 are ignored.
 
+### Retold Bible stories (AI)
+
+When the preacher tells a Bible story in their own words, without names or a reference, the app
+asks an AI model which passage it is and suggests it with a blue **story** badge, e.g.
+
+- "God sent his prophet to tell the man he was going to die… then sent him back to say he would
+  not die" → 2 Kings 20:1-6 (Hezekiah's illness and recovery)
+- "the little boy killed the giant with a stone and a sling" → 1 Samuel 17:48-51
+- "the woman who had been bleeding for twelve years touched the hem of his garment" → Matthew 9:20-22
+
+It checks the last ~80 words every few seconds while listening, and updates its guess as more of
+the story is told. Like quotes, stories never go on screen without a click. It needs internet;
+everything else keeps working without it. Turn it off in Settings.
+
+This uses a small Cloudflare Worker (`cloud/`) running Llama 3.3 70B on Workers AI, within
+Cloudflare's free daily allowance for normal use. To set it up in your own Cloudflare account:
+
+```bash
+cd cloud
+npx wrangler deploy                 # prints the Worker URL
+npx wrangler secret put APP_TOKEN   # paste a long random password
+```
+
+Then add to `config.json`: `"aiUrl": "<Worker URL>"` and `"aiToken": "<that password>"`, and restart.
+
 ### Search by words
 
 Type words from a verse in the box under **On screen now** (e.g. `love is patient`) and press
@@ -139,6 +164,9 @@ Settings are saved to `config.json` in this folder (ignored by git).
 | `translation`    | `kjv`       | Bible translation (`kjv`, `bsb`, `web`, …)           |
 | `language`       | `en-US`     | Speech recognition accent (en-GB, en-NG, en-GH, …)   |
 | `autoSend`       | `false`     | Show detected verses without clicking                |
+| `storyDetection` | `true`      | Suggest retold Bible stories (needs `aiUrl`/`aiToken`) |
+| `aiUrl`          | —           | URL of the story-detection Worker                    |
+| `aiToken`        | —           | Worker password (config.json only, never shown in the page) |
 | `displayStyle`   | `fullScreen`| `fullScreen` or `lowerThird`                         |
 | `fullScreenSlide`| Four Lines  | Theme slide uuid used for full screen                |
 | `lowerThirdSlide`| Lower 3rd Lyrics | Theme slide uuid used for lower third           |

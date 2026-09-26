@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lookup, search, detectQuotes, indexExists, buildIndex, LOCAL_TRANSLATIONS } from './lib/search.js';
+import { findReferences } from './public/parser.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -31,6 +32,10 @@ const DEFAULT_CONFIG = {
   // a Message only fills the first text box, so extra boxes show their placeholder.
   fullScreenSlide: '3FB9D028-2B10-4351-87B1-21C4C988EE34', // Black Box > Four Lines
   lowerThirdSlide: '1498A8E4-8CAB-443D-87A1-09316C611175', // Black > Lower 3rd Lyrics
+  // Story detection (retold Bible stories) via the Cloudflare Worker in cloud/.
+  storyDetection: true,
+  aiUrl: '', // e.g. https://scripture-listener-ai.<you>.workers.dev
+  aiToken: '', // must match the Worker's APP_TOKEN secret; never sent to the browser
 };
 
 let config = { ...DEFAULT_CONFIG };
@@ -40,6 +45,12 @@ if (existsSync(CONFIG_FILE)) {
   } catch (err) {
     console.warn(`Ignoring unreadable config.json: ${err.message}`);
   }
+}
+
+// The browser never sees the AI token; it only needs to know whether story detection is set up.
+function publicConfig() {
+  const { aiToken, ...rest } = config;
+  return { ...rest, storyDetectionAvailable: Boolean(config.aiUrl && aiToken) };
 }
 
 // ---------- ProPresenter ----------
@@ -168,6 +179,37 @@ async function getVerse(reference, translation) {
   return result;
 }
 
+// ---------- Story detection (Cloudflare Worker) ----------
+
+const STORY_MIN_CONFIDENCE = 0.75;
+const STORY_MAX_VERSES = 8; // keep it screen-sized
+
+async function detectStory(text) {
+  if (!config.storyDetection || !config.aiUrl || !config.aiToken) return [];
+  const res = await fetch(`${config.aiUrl.replace(/\/$/, '')}/identify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.aiToken}` },
+    body: JSON.stringify({ text }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`Story detection failed (${res.status})`);
+  const { matches = [] } = await res.json();
+  const found = [];
+  for (const m of matches) {
+    if (!(m.confidence >= STORY_MIN_CONFIDENCE)) continue;
+    // Re-parse the model's reference so only real, well-formed passages get through.
+    const ref = findReferences(String(m.reference)).references[0];
+    if (!ref || !ref.verse) continue;
+    if (ref.verseEnd && ref.verseEnd - ref.verse >= STORY_MAX_VERSES) {
+      ref.verseEnd = ref.verse + STORY_MAX_VERSES - 1;
+      ref.reference = `${ref.book} ${ref.chapter}:${ref.verse}-${ref.verseEnd}`;
+    }
+    if (!lookup(ref.reference, 'kjv')) continue;
+    found.push({ ...ref, story: String(m.story || ''), score: m.confidence });
+  }
+  return found;
+}
+
 // ---------- Live display page (Server-Sent Events) ----------
 
 const displayClients = new Set();
@@ -197,20 +239,25 @@ async function handleApi(req, res, url) {
   const route = `${req.method} ${url.pathname}`;
   switch (route) {
     case 'GET /api/config':
-      return send(res, 200, config);
+      return send(res, 200, publicConfig());
     case 'POST /api/config': {
       const incoming = await readBody(req);
       for (const key of Object.keys(DEFAULT_CONFIG)) {
+        if (key === 'aiToken') continue; // set in config.json only
         if (key in incoming) config[key] = typeof DEFAULT_CONFIG[key] === 'number' ? Number(incoming[key]) : incoming[key];
       }
       await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
-      return send(res, 200, config);
+      return send(res, 200, publicConfig());
     }
     case 'GET /api/search': {
       const q = url.searchParams.get('q');
       if (!q) return send(res, 400, { error: 'q is required' });
       if (!searchReady) return send(res, 503, { error: 'Verse search is still being prepared; try again in a few minutes.' });
       return send(res, 200, await search(q, 8));
+    }
+    case 'POST /api/detect-story': {
+      const { text } = await readBody(req);
+      return send(res, 200, await detectStory(text || ''));
     }
     case 'POST /api/detect-quotes': {
       if (!searchReady) return send(res, 200, []);
