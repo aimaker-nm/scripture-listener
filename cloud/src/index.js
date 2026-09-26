@@ -74,8 +74,9 @@ const SCHEMA = {
 // ---------- downloads ----------
 
 const INSTALLERS = [
-  { key: 'mac', label: 'Download for Mac', note: 'Apple Silicon (M1 or newer), macOS 12+' },
-  { key: 'win', label: 'Download for Windows', note: 'Windows 10 or 11, 64-bit' },
+  { key: 'mac-arm64', label: 'Download for Mac (Apple Silicon)', note: 'M1, M2, M3, M4 or newer, macOS 12+' },
+  { key: 'mac-x64', label: 'Download for Mac (Intel)', note: 'Intel Macs from 2015 on, macOS 12+' },
+  { key: 'win-x64', label: 'Download for Windows', note: 'Windows 10 or 11, 64-bit' },
 ];
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -85,7 +86,7 @@ async function downloadPage(env) {
   const { objects } = await env.DOWNLOADS.list();
   const latest = {};
   for (const o of objects) {
-    const platform = o.key.includes('-mac-') ? 'mac' : o.key.includes('-win-') ? 'win' : null;
+    const platform = INSTALLERS.map((i) => i.key).find((k) => o.key.includes(`-${k}`));
     if (platform && (!latest[platform] || o.uploaded > latest[platform].uploaded)) latest[platform] = o;
   }
   const buttons = INSTALLERS.map(({ key, label, note }) => {
@@ -109,6 +110,7 @@ h2{font-size:16px;margin:28px 0 6px}ol{color:var(--muted);line-height:1.6;paddin
 quoted verses and retold Bible stories, in any accent.</p>
 <div class="dls">${buttons}</div>
 <h2>First launch</h2>
+<p>Not sure which Mac you have? Apple menu → <em>About This Mac</em>: “Chip: Apple M…” means Apple Silicon; “Processor: Intel” means Intel.</p>
 <ol><li><strong>Mac:</strong> open the .dmg, drag Scripture Listener to Applications, then right-click it → <em>Open</em> → <em>Open</em> (needed once).</li>
 <li><strong>Windows:</strong> run the installer; if “Windows protected your PC” appears, click <em>More info</em> → <em>Run anyway</em>.</li></ol>
 <h2>You also need</h2>

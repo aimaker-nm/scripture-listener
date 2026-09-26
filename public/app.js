@@ -459,6 +459,63 @@ async function saveSettings(partial) {
   fillSettings();
 }
 
+// ---------- ProPresenter connection & setup card ----------
+
+let setupDismissed = false; // "Later" clicked: don't pop up again this session
+let setupForced = false; // opened from Settings: stays until the operator is done
+
+function showSetup(state) {
+  const card = $('setup');
+  if (!state || (setupDismissed && state !== 'forced')) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const notConnected = state === 'disconnected';
+  $('find-pp').hidden = !notConnected && state !== 'forced';
+  $('create-msg').hidden = notConnected;
+  $('setup-text').innerHTML = notConnected
+    ? 'Scripture Listener can’t reach ProPresenter. Open ProPresenter, go to <strong>Settings → Network</strong>, tick <strong>Enable Network</strong>, then click <strong>Find ProPresenter</strong>. (If ProPresenter is on another computer, enter its IP address and port under Settings below.)'
+    : state === 'forced'
+      ? 'Find ProPresenter on this computer, and create or repair the Scripture message.'
+      : `Connected to ProPresenter. Click <strong>Create Scripture message</strong> to add the “${config.messageName}” message that shows the verses (nothing else in ProPresenter is changed).`;
+}
+
+function setupLog(lines) {
+  $('setup-log').replaceChildren(...lines.map((l) => Object.assign(document.createElement('li'), { textContent: l })));
+}
+
+async function findProPresenter() {
+  setupLog(['Looking for ProPresenter on this computer…']);
+  try {
+    const { found, config: fresh } = await api('/api/pp/find', { method: 'POST' });
+    if (!found.length) {
+      setupLog(['ProPresenter was not found. Is it open, with Settings → Network → Enable Network ticked?']);
+      return;
+    }
+    config = fresh;
+    fillSettings();
+    setupLog([`Found ${found[0].version.host_description || 'ProPresenter'} on port ${found[0].port}.`]);
+    await checkProPresenter();
+  } catch (err) {
+    setupLog([err.message]);
+  }
+}
+
+async function createMessage() {
+  try {
+    const { steps, config: fresh } = await api('/api/pp/setup', { method: 'POST' });
+    config = fresh;
+    fillSettings();
+    setupLog([...steps, 'All set — click Start listening.']);
+    toast('ProPresenter is ready.');
+    setupForced = false; // hides itself on the next check now that everything is ready
+    setTimeout(() => checkProPresenter(), 4000);
+  } catch (err) {
+    setupLog([err.message]);
+  }
+}
+
 async function checkProPresenter(verbose = false) {
   const pill = $('pp-status');
   try {
@@ -466,18 +523,16 @@ async function checkProPresenter(verbose = false) {
     const name = status.version?.name || status.version?.host_description || 'connected';
     pill.textContent = `ProPresenter: ${name}`;
     pill.className = 'pill ok';
+    const msg = status.messages.find((m) => m.name === config.messageName);
+    const ready = !config.sendToMessage || (msg && msg.tokens.includes(config.textToken) && msg.tokens.includes(config.referenceToken));
+    if (!setupForced) showSetup(ready ? null : 'no-message');
     if (verbose) {
-      const msg = status.messages.find((m) => m.name === config.messageName);
-      if (!config.sendToMessage) toast('Connected to ProPresenter.');
-      else if (!msg && status.messages.length) {
-        toast(`Connected, but no Message named “${config.messageName}”. Found: ${status.messages.map((m) => m.name).join(', ')}`, true);
-      } else if (msg && !msg.tokens.includes(config.textToken)) {
-        toast(`Message “${config.messageName}” has no “${config.textToken}” token. Tokens: ${msg.tokens.join(', ') || 'none'}`, true);
-      } else toast('Connected to ProPresenter and the Message is ready.');
+      toast(ready ? 'Connected to ProPresenter and the Message is ready.' : `Connected, but the “${config.messageName}” message is missing or incomplete.`, !ready);
     }
   } catch (err) {
     pill.textContent = 'ProPresenter: not connected';
     pill.className = 'pill bad';
+    if (!setupForced) showSetup('disconnected');
     if (verbose) toast(err.message, true);
   }
 }
@@ -490,6 +545,21 @@ $('prev').addEventListener('click', () => step(-1));
 $('next').addEventListener('click', () => step(1));
 $('auto-send').addEventListener('change', (e) => saveSettings({ autoSend: e.target.checked }));
 $('test-pp').addEventListener('click', () => checkProPresenter(true));
+$('find-pp').addEventListener('click', findProPresenter);
+$('create-msg').addEventListener('click', createMessage);
+$('setup-later').addEventListener('click', () => {
+  setupDismissed = true;
+  setupForced = false;
+  showSetup(null);
+});
+$('rerun-setup').addEventListener('click', () => {
+  setupDismissed = false;
+  setupForced = true;
+  showSetup('forced');
+  $('create-msg').hidden = false;
+  setupLog([]);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 for (const btn of document.querySelectorAll('#style-switch button')) {
   btn.addEventListener('click', () => setStyle(btn.dataset.style));
 }

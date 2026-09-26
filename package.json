@@ -1,6 +1,6 @@
 {
   "name": "scripture-listener",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Listens to the preacher, detects Bible references and quoted verses, and shows them in ProPresenter",
   "type": "module",
   "private": true,
@@ -69,7 +69,8 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],
@@ -79,7 +80,10 @@
         "NSMicrophoneUsageDescription": "Scripture Listener listens to the sermon to find Bible references."
       },
       "identity": "-",
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v3/{linux,win32}/**"
+      ]
     },
     "win": {
       "target": [
@@ -90,16 +94,23 @@
           ]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v3/{linux,darwin}/**"
+      ]
     },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "artifactName": "ScriptureListener-${version}-win-${arch}-setup.${ext}"
     },
     "directories": {
       "output": "dist"
+    },
+    "dmg": {
+      "artifactName": "ScriptureListener-${version}-mac-${arch}.${ext}"
     }
   }
 }

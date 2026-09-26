@@ -2,7 +2,9 @@
 // and pushes verses to ProPresenter 7 through its network API (7.9+).
 // No dependencies; needs Node 18+ (built-in fetch).
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import net from 'node:net';
+import { promisify } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -160,6 +162,125 @@ async function applyStyle(style) {
   return slide.label;
 }
 
+// ---------- ProPresenter setup (first-run wizard) ----------
+
+// A Message only fills a slide's first text box, so the slide must have just one. The API doesn't
+// list text boxes, so choose by name: ProPresenter's lyric/text slides have one box; "Scripture",
+// "Title", "Name", "Quote"... slides have several.
+const MULTI_BOX = /scripture|reference|title|name|quote|point|list|number|picture|dual|callout|setlist|subtitle/i;
+const SLIDE_PREFERENCES = {
+  fullScreen: [/^four lines$/i, /^two lines$/i, /general text/i, /^lyrics$/i, /statement/i, /text/i, /lines/i],
+  lowerThird: [/lower.?(3rd|third).*lyric/i, /lower.?(3rd|third).*text/i, /lower.?(3rd|third)/i],
+};
+
+function pickSlide(slides, style) {
+  for (const pattern of SLIDE_PREFERENCES[style]) {
+    const found = slides.find((s) => {
+      const name = s.name.trim();
+      const isLower = /lower/i.test(name);
+      return pattern.test(name) && !MULTI_BOX.test(name) && (style === 'lowerThird' ? isLower : !isLower);
+    });
+    if (found) return found;
+  }
+  return null;
+}
+
+const saveConfig = () => writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+
+/** Creates or repairs the Scripture message and chooses slides. Returns what was done, step by step. */
+async function setupProPresenter() {
+  const steps = [];
+  const slides = await listThemeSlides();
+  for (const [key, style, label] of [
+    ['fullScreenSlide', 'fullScreen', 'Full screen'],
+    ['lowerThirdSlide', 'lowerThird', 'Lower third'],
+  ]) {
+    if (slides.some((s) => s.uuid === config[key])) continue; // keep the church's own choice
+    const slide = pickSlide(slides, style);
+    config[key] = slide?.uuid || '';
+    steps.push(slide ? `${label} style uses: ${slide.label}` : `No suitable ${label.toLowerCase()} slide found; pick one in Settings`);
+  }
+  // ProPresenter won't create a message without a theme slide; fall back to any slide.
+  const current =
+    slides.find((s) => s.uuid === (config.displayStyle === 'lowerThird' ? config.lowerThirdSlide : config.fullScreenSlide)) ||
+    slides.find((s) => s.uuid === config.fullScreenSlide) ||
+    slides[0];
+  if (!current) throw new Error('ProPresenter has no themes to show the verse with; add a theme in ProPresenter first.');
+  const theme = { uuid: current.uuid, name: current.name, index: current.index };
+  const text = `{${config.referenceToken}}\n{${config.textToken}}`;
+  const tokens = [config.referenceToken, config.textToken].map((name) => ({ name, text: { text: '' } }));
+
+  let msg = null;
+  try {
+    msg = await pp(messagePath());
+  } catch {
+    // not there yet
+  }
+  if (!msg) {
+    await pp('/v1/messages', {
+      method: 'POST',
+      body: { id: { name: config.messageName }, message: text, tokens, theme, visible_on_network: true, is_active: false, clear_type: 'manual' },
+    });
+    steps.push(`Created the "${config.messageName}" message in ProPresenter`);
+  } else {
+    const names = (msg.tokens || []).map((t) => t.name);
+    if (names.includes(config.referenceToken) && names.includes(config.textToken)) {
+      steps.push(`The "${config.messageName}" message is ready`);
+    } else {
+      await pp(`/v1/message/${encodeURIComponent(msg.id?.uuid || config.messageName)}`, {
+        method: 'PUT',
+        body: { ...msg, message: text, tokens, theme: theme || msg.theme },
+      });
+      steps.push(`Added {${config.referenceToken}} and {${config.textToken}} to the "${config.messageName}" message`);
+    }
+  }
+  await saveConfig();
+  return steps;
+}
+
+// Finds ProPresenter on this computer: asks every program listening on a port whether it is
+// ProPresenter (GET /version), so nobody has to look up the port number.
+const execFileAsync = promisify(execFile);
+async function listeningPorts() {
+  const { stdout } = await execFileAsync('netstat', ['-an', '-p', process.platform === 'win32' ? 'TCP' : 'tcp'], {
+    timeout: 5000,
+    windowsHide: true,
+  });
+  const ports = new Set();
+  for (const line of stdout.split('\n')) {
+    if (!/LISTEN/i.test(line)) continue;
+    // mac: "*.59180" / "127.0.0.1.59180"   Windows: "0.0.0.0:59180" / "[::]:59180"
+    const m = line.match(/(?:\*|127\.0\.0\.1|0\.0\.0\.0|\[?::1?\]?)[.:](\d+)\s/);
+    if (m) ports.add(Number(m[1]));
+  }
+  return [...ports].filter((p) => p !== listenPort && p !== whisperPort);
+}
+
+async function findProPresenter() {
+  const ports = await listeningPorts();
+  const found = await Promise.all(
+    ports.map(async (port) => {
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/version`, { signal: AbortSignal.timeout(800) });
+        const version = await res.json();
+        return /propresenter/i.test(version.host_description || '') ? { port, version } : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return found.filter(Boolean);
+}
+
+// First free port at or after `preferred` (so another program using 4000/4001 doesn't stop us).
+function freePort(preferred) {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(freePort(preferred + 1)));
+    probe.listen(preferred, '127.0.0.1', () => probe.close(() => resolve(preferred)));
+  });
+}
+
 async function clearProPresenter() {
   const results = {};
   if (config.sendToMessage) {
@@ -201,7 +322,7 @@ async function getVerse(reference, translation) {
 // whisper.cpp's server (brew install whisper-cpp) with the large-v3-turbo model: accurate across
 // accents, runs offline on Apple Silicon. Started and stopped with this server.
 
-const WHISPER_PORT = 4001;
+let whisperPort = 4001; // moved to a free port if taken
 const WHISPER_DIR = path.join(DATA_DIR, 'whisper');
 const WHISPER_MODEL = path.join(WHISPER_DIR, 'ggml-large-v3-turbo-q5_0.bin');
 const VAD_MODEL = path.join(WHISPER_DIR, 'ggml-silero-v5.1.2.bin');
@@ -222,23 +343,24 @@ const whisperBin = () =>
     (p) => p && existsSync(p),
   );
 
-function startWhisper() {
+async function startWhisper() {
   const bin = whisperBin();
   if (!bin || !existsSync(WHISPER_MODEL)) {
     console.log('Whisper not installed; using Chrome speech recognition (see README to install).');
     return;
   }
-  const args = ['-m', WHISPER_MODEL, '--host', '127.0.0.1', '--port', String(WHISPER_PORT), '-l', 'en', '-t', '4', '-sns'];
+  whisperPort = await freePort(4001);
+  const args = ['-m', WHISPER_MODEL, '--host', '127.0.0.1', '--port', String(whisperPort), '-l', 'en', '-t', '4', '-sns'];
   if (existsSync(VAD_MODEL)) args.push('--vad', '-vm', VAD_MODEL);
   whisperProc = spawn(bin, args, { stdio: 'ignore' });
   whisperProc.on('exit', () => {
     whisperReady = false;
     whisperProc = null;
-    if (!shuttingDown) setTimeout(startWhisper, 3000);
+    if (!shuttingDown) setTimeout(() => startWhisper(), 3000);
   });
   const poll = setInterval(async () => {
     try {
-      await fetch(`http://127.0.0.1:${WHISPER_PORT}/`, { signal: AbortSignal.timeout(1000) });
+      await fetch(`http://127.0.0.1:${whisperPort}/`, { signal: AbortSignal.timeout(1000) });
       whisperReady = true;
       clearInterval(poll);
       console.log('Whisper speech recognition ready.');
@@ -269,7 +391,7 @@ async function transcribe(wav, context, engine = config.speechEngine) {
   form.append('temperature', '0');
   // The vocabulary plus the last words heard, so sentences continue naturally.
   form.append('prompt', `${WHISPER_VOCAB} ${context}`.slice(-600));
-  const res = await fetch(`http://127.0.0.1:${WHISPER_PORT}/inference`, {
+  const res = await fetch(`http://127.0.0.1:${whisperPort}/inference`, {
     method: 'POST',
     body: form,
     signal: AbortSignal.timeout(30000),
@@ -379,7 +501,7 @@ async function handleApi(req, res, url) {
         if (key === 'aiToken') continue; // set in config.json only
         if (key in incoming) config[key] = typeof DEFAULT_CONFIG[key] === 'number' ? Number(incoming[key]) : incoming[key];
       }
-      await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+      await saveConfig();
       return send(res, 200, publicConfig());
     }
     case 'GET /api/search': {
@@ -414,9 +536,20 @@ async function handleApi(req, res, url) {
       if (style !== 'fullScreen' && style !== 'lowerThird') return send(res, 400, { error: 'unknown style' });
       const slide = await applyStyle(style);
       config.displayStyle = style;
-      await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+      await saveConfig();
       return send(res, 200, { style, slide });
     }
+    case 'POST /api/pp/find': {
+      const found = await findProPresenter();
+      if (found.length) {
+        config.ppHost = '127.0.0.1';
+        config.ppPort = found[0].port;
+        await saveConfig();
+      }
+      return send(res, 200, { found, config: publicConfig() });
+    }
+    case 'POST /api/pp/setup':
+      return send(res, 200, { steps: await setupProPresenter(), config: publicConfig() });
     case 'GET /api/pp/status': {
       const version = await pp('/version');
       let messages = [];
@@ -495,13 +628,24 @@ export function shutdown() {
   return closed;
 }
 
+// Listen on PORT (4000), or the next free port if another program has it (up to 20 tries).
+// `ready` resolves with the port actually used.
+let listenPort = PORT;
 export const ready = new Promise((resolve, reject) => {
-  server.once('error', reject);
-  server.once('listening', resolve);
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && listenPort < PORT + 20) {
+      listenPort += 1;
+      server.listen(listenPort, HOST);
+    } else {
+      reject(err);
+    }
+  });
+  server.once('listening', () => resolve(listenPort));
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Scripture Listener running at http://localhost:${PORT}`);
+server.listen(listenPort, HOST);
+ready.then((port) => {
+  console.log(`Scripture Listener running at http://localhost:${port}`);
   console.log(`ProPresenter target: http://${config.ppHost}:${config.ppPort} (change in the page's Settings)`);
-  console.log(`Optional web display: http://localhost:${PORT}/display`);
+  console.log(`Optional web display: http://localhost:${port}/display`);
 });

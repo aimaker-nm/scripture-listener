@@ -1,4 +1,5 @@
-# Builds the Scripture Listener desktop installers (Windows Setup.exe and Mac .dmg).
+# Builds the Scripture Listener desktop installers: Windows setup.exe, Mac .dmg for Apple Silicon
+# and for Intel. Each is built on its own kind of machine so native parts match.
 # Runs on demand (Actions tab -> Desktop installers -> Run workflow) or when a v* tag is pushed.
 # Needs repository secrets AI_URL and AI_TOKEN (the Cloudflare Worker) to preset cloud features.
 name: Desktop installers
@@ -19,10 +20,16 @@ jobs:
         include:
           - os: windows-latest
             target: win
+            arch: x64
             whisper_dir: build/whisper/win32-x64
           - os: macos-14
             target: mac
+            arch: arm64
             whisper_dir: build/whisper/darwin-arm64
+          - os: macos-15-intel
+            target: mac
+            arch: x64
+            whisper_dir: build/whisper/darwin-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +52,11 @@ jobs:
             cmake --build wcpp/build --config Release --target whisper-server -j
             mkdir -p "${{ matrix.whisper_dir }}" && cp wcpp/build/bin/Release/whisper-server.exe "${{ matrix.whisper_dir }}/"
           else
-            cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=ON \
+            X86_FLAGS=""
+            # Intel Macs supported by macOS 12+ all have AVX2.
+            [ "${{ matrix.arch }}" = x64 ] && X86_FLAGS="-DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON"
+            # shellcheck disable=SC2086  # X86_FLAGS is several flags on purpose
+            cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=ON $X86_FLAGS \
               -DGGML_METAL_EMBED_LIBRARY=ON -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
             cmake --build wcpp/build --config Release --target whisper-server -j
             mkdir -p "${{ matrix.whisper_dir }}" && cp wcpp/build/bin/whisper-server "${{ matrix.whisper_dir }}/"
@@ -73,11 +84,11 @@ jobs:
           node -e "require('fs').writeFileSync('data/defaults.json', JSON.stringify({ aiUrl: process.env.AI_URL || '', aiToken: process.env.AI_TOKEN || '', storyDetection: true }))"
 
       - name: Build installer
-        run: npx electron-builder --${{ matrix.target }} --publish never
+        run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scripture-listener-${{ matrix.target }}
+          name: scripture-listener-${{ matrix.target }}-${{ matrix.arch }}
           path: |
             dist/*.exe
             dist/*.dmg

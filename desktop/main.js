@@ -5,8 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT || '4000';
-const APP_URL = `http://localhost:${PORT}`;
+let APP_URL = 'http://localhost:4000'; // the server moves to a free port if 4000 is taken
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -59,12 +58,12 @@ app.whenReady().then(async () => {
 
   try {
     server = await import('../server.js');
-    await server.ready;
+    APP_URL = `http://localhost:${await server.ready}`;
   } catch (err) {
     dialog.showErrorBox(
       'Scripture Listener could not start',
       err.code === 'EADDRINUSE'
-        ? `Port ${PORT} is already in use. Close any other copy of Scripture Listener and try again.`
+        ? 'No free network port was found for Scripture Listener. Restart the computer and try again.'
         : String(err.stack || err),
     );
     app.exit(1);

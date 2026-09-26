@@ -23,7 +23,10 @@ main {
 }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
 .live { grid-column: 1; }
-.transcript-panel, #settings { grid-column: 1 / -1; }
+.transcript-panel, #settings, .setup { grid-column: 1 / -1; }
+.setup { border-color: var(--accent); }
+.setup p { margin: 0; line-height: 1.5; }
+.setup-log { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
 @media (max-width: 800px) { main { grid-template-columns: 1fr; } .live { grid-column: auto; } }
 
 button, input, select {

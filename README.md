@@ -9,10 +9,14 @@ Bible stories retold in the preacher's own words. It understands any English acc
 
 **[Download Scripture Listener](https://scripture-listener-ai.holarwhaley2.workers.dev/)**
 
-| Computer | File | Size |
-|---|---|---|
-| **Mac** with Apple Silicon (M1 or newer), macOS 12+ | [ScriptureListener-1.0.0-mac-arm64.dmg](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.0.0-mac-arm64.dmg) | 752 MB |
-| **Windows** 10 or 11, 64-bit | [ScriptureListener-1.0.0-win-x64-setup.exe](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.0.0-win-x64-setup.exe) | 707 MB |
+| Computer | File |
+|---|---|
+| **Mac** with Apple Silicon (M1 or newer), macOS 12+ | [ScriptureListener-1.1.0-mac-arm64.dmg](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.1.0-mac-arm64.dmg) |
+| **Mac** with Intel processor (2015 or newer), macOS 12+ | [ScriptureListener-1.1.0-mac-x64.dmg](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.1.0-mac-x64.dmg) |
+| **Windows** 10 or 11, 64-bit | [ScriptureListener-1.1.0-win-x64-setup.exe](https://scripture-listener-ai.holarwhaley2.workers.dev/download/ScriptureListener-1.1.0-win-x64-setup.exe) |
+
+Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon,
+"Processor: Intel" means Intel. Each installer is about 700–800 MB.
 
 The download page always has the newest version. Everything is included: the Bibles, verse search,
 and the speech recognition model. There is nothing else to install.
@@ -41,7 +45,19 @@ microphone, ideally a feed from the sound desk.
 ## Set up ProPresenter (one time)
 
 1. **Turn on the network API:** ProPresenter → Settings → **Network** → tick **Enable Network**.
-   Note the **Port** number shown there (and the IP address, if ProPresenter is on another computer).
+2. Open Scripture Listener. A **Set up ProPresenter** card appears:
+   - click **Find ProPresenter** (it finds ProPresenter on this computer by itself), then
+   - click **Create Scripture message**. It creates a Message named `Scripture` and picks
+     suitable slides from your own themes. Nothing else in ProPresenter is changed.
+3. Make sure the audience screen's **Look** includes the **Messages** layer.
+
+That's it. If ProPresenter runs on **another computer**, enter its IP address and port under
+Settings instead of using *Find*, then click **Create Scripture message**.
+
+<details>
+<summary>Creating the Message by hand instead</summary>
+
+1. Note the **Port** shown in ProPresenter → Settings → Network, and enter it in Scripture Listener's Settings.
 2. **Create the Message that shows the verse:**
    - Open the **Messages** panel (Show → Messages) and click **+**.
    - Name it exactly `Scripture`.
@@ -56,14 +72,13 @@ microphone, ideally a feed from the sound desk.
      shows the word "Reference". Turn on text shrink-to-fit so long passages fit.
 3. Make sure the audience screen's **Look** includes the **Messages** layer.
 
+</details>
+
 ## First launch
 
-1. Open **Scripture Listener** and click **Settings** at the bottom.
-2. Enter ProPresenter's **port** (and IP address if it's on another computer), click **Save**,
-   then **Test connection**. The pill at the top turns green, and it warns you if the `Scripture`
-   message or its fields are missing.
-3. Choose your **Microphone** (the sound-desk input if you have one).
-4. Click **🎤 Start listening**. The level meter beside it turns green when it hears speech, and
+1. After the setup above, the pill at the top says **ProPresenter: …** in green.
+2. Open **Settings** at the bottom and choose your **Microphone** (the sound-desk input if you have one).
+3. Click **🎤 Start listening**. The level meter beside it turns green when it hears speech, and
    the words appear in the **Transcript** panel.
 
 ## Using it during a service
@@ -132,7 +147,9 @@ Tip: a clean feed from the sound desk makes the biggest difference to accuracy.
 - **Transcript is slow on Windows**: switch Settings → Speech engine to *Whisper in the cloud*.
 - **References not detected**: look at the Transcript panel to see what was heard. Better audio
   (a sound-desk feed) fixes most problems.
-- **"Port 4000 is already in use"**: another copy of Scripture Listener is running. Close it first.
+- **"Find ProPresenter" finds nothing**: check ProPresenter is open with Network enabled. If it is
+  on another computer, enter its IP address and port in Settings.
+- **Transcript is slow on an Intel Mac**: use Settings → Speech engine → *Whisper in the cloud*.
 
 ---
 
@@ -188,9 +205,10 @@ in `cloud/.admin-token` (git-ignored).
 ### Releasing a new version
 
 1. Bump `version` in `package.json`, then commit and push.
-2. Build the installers: GitHub → **Actions → Desktop installers → Run workflow** (or push a `v*`
-   tag). It builds Whisper from source, the search index, runs the tests, and produces the Mac
-   `.dmg` and Windows `setup.exe` as run artifacts. The repository secrets `AI_URL` and `AI_TOKEN`
+2. Build the installers: push a tag (`git tag v1.2.0 && git push origin v1.2.0`) or GitHub →
+   **Actions → Desktop installers → Run workflow**. On Windows, Apple Silicon and Intel Mac machines
+   it builds Whisper from source and the search index, runs the tests, and produces
+   `ScriptureListener-<version>-{mac-arm64,mac-x64}.dmg` and `…-win-x64-setup.exe` as run artifacts. The repository secrets `AI_URL` and `AI_TOKEN`
    preset the cloud features.
 3. Download the artifacts (`gh run download <run-id>`), then upload them to the download page:
    ```bash

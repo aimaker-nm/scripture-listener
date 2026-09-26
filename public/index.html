@@ -24,6 +24,16 @@
   </header>
 
   <main>
+    <section class="panel setup" id="setup" hidden>
+      <h2>Set up ProPresenter</h2>
+      <p id="setup-text"></p>
+      <div class="row">
+        <button id="find-pp" class="primary">Find ProPresenter</button>
+        <button id="create-msg" class="primary">Create Scripture message</button>
+        <button id="setup-later">Later</button>
+      </div>
+      <ul id="setup-log" class="setup-log"></ul>
+    </section>
     <section class="panel live">
       <h2>On screen now</h2>
       <div id="live-ref" class="ref">—</div>
@@ -97,6 +107,7 @@
         <div class="row">
           <button type="submit" class="primary">Save</button>
           <button type="button" id="test-pp">Test connection</button>
+          <button type="button" id="rerun-setup">Set up ProPresenter…</button>
         </div>
       </form>
       <p class="muted small">Web display for OBS or ProPresenter Web content: <a href="/display" target="_blank">/display</a></p>

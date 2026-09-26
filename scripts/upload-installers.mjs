@@ -29,7 +29,12 @@ async function call(pathname, params, init = {}) {
 for (const file of process.argv.slice(2)) {
   if (!existsSync(file)) throw new Error(`no such file: ${file}`);
   const isMac = file.endsWith('.dmg');
-  const key = isMac ? `ScriptureListener-${version}-mac-arm64.dmg` : `ScriptureListener-${version}-win-x64-setup.exe`;
+  // Installers are named ScriptureListener-<version>-<mac|win>-<arch>...; keep that name on the site.
+  const key = /^ScriptureListener-[\d.]+-(mac|win)-(arm64|x64)(-setup)?\.(dmg|exe)$/.test(path.basename(file))
+    ? path.basename(file)
+    : isMac
+      ? `ScriptureListener-${version}-mac-${file.includes('x64') ? 'x64' : 'arm64'}.dmg`
+      : `ScriptureListener-${version}-win-x64-setup.exe`;
   const type = isMac ? 'application/x-apple-diskimage' : 'application/vnd.microsoft.portable-executable';
   const size = statSync(file).size;
   const { uploadId } = await call('/upload/create', { key, type }, { method: 'POST' });
