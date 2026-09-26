@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scripture Display</title>
+  <style>
+    /* Transparent background so it can be keyed over video in OBS or ProPresenter Web content. */
+    html, body { margin: 0; height: 100%; background: transparent; font-family: Georgia, 'Times New Roman', serif; }
+    #box {
+      position: absolute; left: 5%; right: 5%; bottom: 6%;
+      background: rgba(0, 0, 0, .72); color: #fff; border-radius: 12px;
+      padding: 2.5vh 3vw; transition: opacity .4s; opacity: 0;
+    }
+    #box.on { opacity: 1; }
+    #text { font-size: 4.2vh; line-height: 1.35; }
+    #ref { font-size: 3.2vh; margin-top: 1.2vh; font-weight: bold; text-align: right; opacity: .9; }
+  </style>
+</head>
+<body>
+  <div id="box"><div id="text"></div><div id="ref"></div></div>
+  <script>
+    const box = document.getElementById('box');
+    const events = new EventSource('/api/display-events');
+    events.onmessage = (e) => {
+      const verse = JSON.parse(e.data);
+      if (!verse) return box.classList.remove('on');
+      document.getElementById('text').textContent = verse.text;
+      document.getElementById('ref').textContent = verse.reference;
+      box.classList.add('on');
+    };
+  </script>
+</body>
+</html>

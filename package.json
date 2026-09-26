@@ -1,0 +1,14 @@
+{
+  "name": "scripture-listener",
+  "version": "1.0.0",
+  "description": "Listens to the preacher, detects Bible references, and shows the verse in ProPresenter",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}
