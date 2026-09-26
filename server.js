@@ -25,6 +25,11 @@ const DEFAULT_CONFIG = {
   translation: 'kjv', // bible-api.com translation id
   language: 'en-US', // speech recognition language
   autoSend: false, // send detected verses immediately (otherwise operator clicks)
+  displayStyle: 'fullScreen', // 'fullScreen' or 'lowerThird'
+  // Theme slide uuids used for each style. Pick slides with a single text box:
+  // a Message only fills the first text box, so extra boxes show their placeholder.
+  fullScreenSlide: '3FB9D028-2B10-4351-87B1-21C4C988EE34', // Black Box > Four Lines
+  lowerThirdSlide: '1498A8E4-8CAB-443D-87A1-09316C611175', // Black > Lower 3rd Lyrics
 };
 
 let config = { ...DEFAULT_CONFIG };
@@ -91,6 +96,38 @@ async function showOnProPresenter({ reference, text }) {
     results.stage = 'shown';
   }
   return results;
+}
+
+// Every theme slide as {uuid, name, index, label}, flattening theme groups.
+async function listThemeSlides() {
+  const slides = [];
+  const walk = (group, prefix) => {
+    for (const theme of group.themes || []) {
+      const themeName = prefix ? `${prefix} / ${theme.id.name}` : theme.id.name;
+      for (const slide of theme.slides || []) {
+        slides.push({ ...slide.id, label: `${themeName} — ${slide.id.name.trim() || 'Untitled'}` });
+      }
+    }
+    for (const sub of group.groups || []) walk(sub, prefix ? `${prefix} / ${sub.id.name}` : sub.id.name);
+  };
+  walk((await pp('/v1/themes')) || {}, '');
+  return slides;
+}
+
+// Point the Scripture Message at the theme slide for the chosen style.
+async function applyStyle(style) {
+  const uuid = style === 'lowerThird' ? config.lowerThirdSlide : config.fullScreenSlide;
+  const slide = (await listThemeSlides()).find((s) => s.uuid === uuid);
+  if (!slide) throw new Error(`Theme slide for ${style} not found in ProPresenter; pick one in Settings.`);
+  const msg = await pp(messagePath());
+  const { label, ...theme } = slide;
+  await pp(`/v1/message/${encodeURIComponent(msg.id.uuid || config.messageName)}`, {
+    method: 'PUT',
+    body: { ...msg, theme },
+  });
+  // Re-trigger so a verse already on screen switches style immediately.
+  if (current) await showOnProPresenter(current);
+  return slide.label;
 }
 
 async function clearProPresenter() {
@@ -169,6 +206,16 @@ async function handleApi(req, res, url) {
       const ref = url.searchParams.get('ref');
       if (!ref) return send(res, 400, { error: 'ref is required' });
       return send(res, 200, await getVerse(ref, url.searchParams.get('translation') || config.translation));
+    }
+    case 'GET /api/pp/themes':
+      return send(res, 200, await listThemeSlides());
+    case 'POST /api/style': {
+      const { style } = await readBody(req);
+      if (style !== 'fullScreen' && style !== 'lowerThird') return send(res, 400, { error: 'unknown style' });
+      const slide = await applyStyle(style);
+      config.displayStyle = style;
+      await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+      return send(res, 200, { style, slide });
     }
     case 'GET /api/pp/status': {
       const version = await pp('/version');

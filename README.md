@@ -69,8 +69,11 @@ allows the microphone on `localhost` or HTTPS pages).
 3. As references are spoken they appear under **Detected references** with a preview.
    Click **Show** to put one on screen.
    - Turn on **Auto-send** to put verses on screen immediately with no operator.
-4. **Prev / Next verse** (or ← / → keys) steps through the passage; **Clear screen** (or Esc) hides it.
-5. Type a reference in the box (e.g. `Romans 8:28-30`) to show something manually.
+4. **Full screen / Lower third** (top bar) switches how verses look; a verse already on screen
+   changes immediately. Choose which ProPresenter theme slide each style uses in **Settings**
+   (defaults: Black Box → Four Lines, and Black → Lower 3rd Lyrics).
+5. **Prev / Next verse** (or ← / → keys) steps through the passage; **Clear screen** (or Esc) hides it.
+6. Type a reference in the box (e.g. `Romans 8:28-30`) to show something manually.
 
 ProPresenter can be on a different computer — just enter its IP address.
 
@@ -103,6 +106,9 @@ Settings are saved to `config.json` in this folder (ignored by git).
 | `translation`    | `kjv`       | Bible translation                                    |
 | `language`       | `en-US`     | Speech recognition accent (en-GB, en-NG, en-GH, …)   |
 | `autoSend`       | `false`     | Show detected verses without clicking                |
+| `displayStyle`   | `fullScreen`| `fullScreen` or `lowerThird`                         |
+| `fullScreenSlide`| Four Lines  | Theme slide uuid used for full screen                |
+| `lowerThirdSlide`| Lower 3rd Lyrics | Theme slide uuid used for lower third           |
 
 ## Troubleshooting
 

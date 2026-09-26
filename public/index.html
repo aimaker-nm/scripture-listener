@@ -10,6 +10,10 @@
   <header>
     <h1>Scripture Listener</h1>
     <span id="pp-status" class="pill">ProPresenter: checking…</span>
+    <div class="segmented" id="style-switch" role="group" aria-label="Display style">
+      <button type="button" data-style="fullScreen">Full screen</button>
+      <button type="button" data-style="lowerThird">Lower third</button>
+    </div>
     <label class="toggle"><input type="checkbox" id="auto-send" /> Auto-send</label>
     <button id="listen" class="primary">🎤 Start listening</button>
   </header>
@@ -49,6 +53,8 @@
         <label>Message name <input name="messageName" /></label>
         <label>Reference token <input name="referenceToken" /></label>
         <label>Verse text token <input name="textToken" /></label>
+        <label>Full screen slide <select name="fullScreenSlide" class="slide-select"></select></label>
+        <label>Lower third slide <select name="lowerThirdSlide" class="slide-select"></select></label>
         <label class="check"><input name="sendToStage" type="checkbox" /> Also send to stage display</label>
         <label>Translation
           <select name="translation">

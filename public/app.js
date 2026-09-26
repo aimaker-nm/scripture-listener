@@ -187,6 +187,47 @@ function toggleListening() {
   }
 }
 
+// ---------- display style ----------
+
+function markStyle() {
+  for (const btn of document.querySelectorAll('#style-switch button')) {
+    btn.classList.toggle('active', btn.dataset.style === config.displayStyle);
+  }
+}
+
+async function setStyle(style) {
+  try {
+    const result = await api('/api/style', { method: 'POST', body: { style } });
+    config.displayStyle = result.style;
+    markStyle();
+    toast(`Style: ${result.slide}`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// Fill the slide pickers with ProPresenter's theme slides.
+async function loadSlides() {
+  let slides = [];
+  try {
+    slides = await api('/api/pp/themes');
+  } catch {
+    // not connected yet; pickers keep whatever they had
+    return;
+  }
+  for (const select of document.querySelectorAll('.slide-select')) {
+    select.replaceChildren(
+      ...slides.map((s) => {
+        const opt = document.createElement('option');
+        opt.value = s.uuid;
+        opt.textContent = s.label;
+        return opt;
+      }),
+    );
+    select.value = config[select.name] || '';
+  }
+}
+
 // ---------- settings & status ----------
 
 function fillSettings() {
@@ -198,6 +239,7 @@ function fillSettings() {
     else input.value = value;
   }
   $('auto-send').checked = Boolean(config.autoSend);
+  markStyle();
 }
 
 async function saveSettings(partial) {
@@ -236,6 +278,10 @@ $('prev').addEventListener('click', () => step(-1));
 $('next').addEventListener('click', () => step(1));
 $('auto-send').addEventListener('change', (e) => saveSettings({ autoSend: e.target.checked }));
 $('test-pp').addEventListener('click', () => checkProPresenter(true));
+for (const btn of document.querySelectorAll('#style-switch button')) {
+  btn.addEventListener('click', () => setStyle(btn.dataset.style));
+}
+$('settings').addEventListener('toggle', (e) => e.target.open && loadSlides());
 
 $('manual').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -252,11 +298,12 @@ $('settings-form').addEventListener('submit', async (e) => {
   const form = e.target;
   const values = {};
   for (const el of form.elements) {
-    if (!el.name) continue;
+    if (!el.name || (el.tagName === 'SELECT' && !el.value)) continue;
     values[el.name] = el.type === 'checkbox' ? el.checked : el.value;
   }
   await saveSettings(values);
   if (recognition) recognition.lang = config.language;
+  if (values.fullScreenSlide || values.lowerThirdSlide) await setStyle(config.displayStyle);
   toast('Settings saved.');
   checkProPresenter(true);
 });
