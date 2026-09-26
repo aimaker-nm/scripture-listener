@@ -69,7 +69,8 @@ jobs:
         env:
           AI_URL: ${{ secrets.AI_URL }}
           AI_TOKEN: ${{ secrets.AI_TOKEN }}
-        run: node -e "require('fs').writeFileSync('data/defaults.json', JSON.stringify({ aiUrl: process.env.AI_URL || '', aiToken: process.env.AI_TOKEN || '', storyDetection: true }))"
+        run: |
+          node -e "require('fs').writeFileSync('data/defaults.json', JSON.stringify({ aiUrl: process.env.AI_URL || '', aiToken: process.env.AI_TOKEN || '', storyDetection: true }))"
 
       - name: Build installer
         run: npx electron-builder --${{ matrix.target }} --publish never
