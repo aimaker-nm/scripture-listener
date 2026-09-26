@@ -6,7 +6,7 @@ import { BrowserWindow } from 'electron';
 const WIDTH = 1920;
 const HEIGHT = 1080;
 const FPS = 30;
-const KEEPALIVE_MS = 500; // re-send the last frame when nothing changes, so receivers stay locked on
+const KEEPALIVE_MS = 500; // repaint at least this often when nothing changes, so receivers stay locked on
 
 export const FEEDS = [
   { id: 'lowerThird', name: 'Scripture - Lower Third', setting: 'ndiLowerThird' },
@@ -33,7 +33,7 @@ async function loadNdi() {
 
 function feedUrl(appUrl, feed, config) {
   const params = new URLSearchParams({ style: feed.id, scale: String(config.ndiTextScale || 1) });
-  if (config.ndiFullScreenBg) params.set('bg', config.ndiFullScreenBg);
+  params.set('bg', config.ndiFullScreenBackdrop === 'transparent' ? 'transparent' : config.ndiFullScreenBg || '#0d1b33');
   if (config.ndiAccent) params.set('accent', config.ndiAccent);
   return `${appUrl}/ndi.html?${params}`;
 }
@@ -73,7 +73,12 @@ async function startFeed(appUrl, feed, config) {
 
   // Electron gives BGRA pixels on Mac and Windows, which is what NDI's BGRA format expects.
   win.webContents.on('paint', (_event, _dirty, image) => sendFrame(image.toBitmap(), image.getSize()));
-  state.timer = setInterval(() => state.lastFrame && sendFrame(state.lastFrame.bitmap, state.lastFrame.size), KEEPALIVE_MS);
+  // Keep receivers locked on, and make sure the frame they hold is current: Chromium skips
+  // repainting when nothing visibly changes (e.g. right after a fade-out), so force a fresh
+  // paint instead of repeating a stale frame.
+  state.timer = setInterval(() => {
+    if (!win.isDestroyed()) win.webContents.invalidate();
+  }, KEEPALIVE_MS);
   await win.loadURL(state.url);
   running.set(feed.id, state);
   console.log(`NDI output started: ${feed.name}`);

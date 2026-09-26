@@ -78,7 +78,13 @@
           <p class="muted small" id="ndi-status"></p>
           <label class="check"><input name="ndiLowerThird" type="checkbox" /> “Scripture - Lower Third” (transparent, for the livestream in OBS / vMix)</label>
           <label class="check"><input name="ndiFullScreen" type="checkbox" /> “Scripture - Full Screen” (for side / overflow screens)</label>
-          <label>Full screen background <input name="ndiFullScreenBg" type="color" /></label>
+          <label>Full screen background
+            <select name="ndiFullScreenBackdrop">
+              <option value="solid">Colour behind the verse</option>
+              <option value="transparent">None (verse over whatever is underneath)</option>
+            </select>
+          </label>
+          <label>Background colour <input name="ndiFullScreenBg" type="color" /></label>
           <label>Reference / highlight colour <input name="ndiAccent" type="color" /></label>
           <label>Text size
             <select name="ndiTextScale">
@@ -86,6 +92,20 @@
               <option value="1.2">Larger</option><option value="1.4">Largest</option>
             </select>
           </label>
+          <div class="ndi-pp">
+            <strong>Different styles on ProPresenter's screens (e.g. LED wall + TV)</strong>
+            <ol class="muted small">
+              <li>In ProPresenter → Settings → <em>Inputs</em>, add the NDI source <em>Scripture - Full Screen</em> (or <em>Lower Third</em>), and add it to the Media Bin's <em>Video Inputs</em> playlist.</li>
+              <li>Choose it here, then click <em>Create LED + TV Look</em>: screen 1 shows the Scripture message, screen 2 shows the NDI verse. Lyrics and everything else stay as they are. If screen 1 also uses a live camera input, that camera will no longer show on screen 1.</li>
+            </ol>
+            <div class="row">
+              <label>ProPresenter video input
+                <select name="ppVideoInput" id="video-input-select"><option value="">— none —</option></select>
+              </label>
+              <button type="button" id="led-tv-look">Create LED + TV Look</button>
+            </div>
+            <ul id="look-log" class="setup-log"></ul>
+          </div>
         </fieldset>
         <label>Translation
           <select name="translation">

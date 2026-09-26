@@ -81,6 +81,9 @@ button.danger { color: var(--danger); }
   display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .grid fieldset.ndi legend { color: var(--text); font-weight: 600; padding: 0 6px; }
 .grid fieldset.ndi p { grid-column: 1 / -1; margin: 0; }
+.grid fieldset.ndi .ndi-pp { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 10px; }
+.grid fieldset.ndi .ndi-pp ol { margin: 6px 0; padding-left: 18px; line-height: 1.5; }
+.grid fieldset.ndi .ndi-pp .row { align-items: flex-end; }
 .grid input[type="color"] { padding: 2px; height: 36px; }
 summary { cursor: pointer; font-weight: 600; }
 a { color: var(--accent); }

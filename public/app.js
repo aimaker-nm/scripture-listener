@@ -580,7 +580,33 @@ $('rerun-setup').addEventListener('click', () => {
 for (const btn of document.querySelectorAll('#style-switch button')) {
   btn.addEventListener('click', () => setStyle(btn.dataset.style));
 }
-$('settings').addEventListener('toggle', (e) => e.target.open && loadSlides());
+$('settings').addEventListener('toggle', (e) => e.target.open && (loadSlides(), loadVideoInputs()));
+
+// ProPresenter video inputs (for the NDI feed on a second screen).
+async function loadVideoInputs() {
+  const select = $('video-input-select');
+  try {
+    const inputs = await api('/api/pp/video_inputs');
+    select.replaceChildren(new Option('— none —', ''), ...inputs.map((v) => new Option(v.name, v.uuid)));
+    if (!inputs.length) select.append(new Option('(none in ProPresenter’s Video Inputs playlist yet)', '', false, false));
+  } catch {
+    // not connected; keep what is there
+  }
+  select.value = config.ppVideoInput || '';
+}
+
+$('led-tv-look').addEventListener('click', async () => {
+  const log = $('look-log');
+  const lines = (list) => log.replaceChildren(...list.map((l) => Object.assign(document.createElement('li'), { textContent: l })));
+  try {
+    // Save the chosen video input first so the Look step can start it.
+    await saveSettings({ ppVideoInput: $('video-input-select').value });
+    lines((await api('/api/pp/led-tv-look', { method: 'POST' })).steps);
+    toast('LED + TV Look is live in ProPresenter.');
+  } catch (err) {
+    lines([err.message]);
+  }
+});
 
 $('manual').addEventListener('submit', (e) => {
   e.preventDefault();

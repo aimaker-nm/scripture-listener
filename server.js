@@ -48,6 +48,10 @@ const DEFAULT_CONFIG = {
   ndiFullScreenBg: '#0d1b33',
   ndiAccent: '#f5c451',
   ndiTextScale: 1,
+  ndiFullScreenBackdrop: 'solid', // 'solid' (colour behind the verse) or 'transparent' (verse only)
+  // ProPresenter video input (in the Media Bin's Video Inputs playlist) that carries an NDI feed
+  // to another screen. Re-triggered on Show if it isn't live. '' = not used.
+  ppVideoInput: '',
   // Story detection (retold Bible stories) via the Cloudflare Worker in cloud/.
   storyDetection: true,
   aiUrl: '', // e.g. https://scripture-listener-ai.<you>.workers.dev
@@ -127,8 +131,19 @@ async function buildTokens(values) {
   return [...byName.values()];
 }
 
+// Make sure the NDI verse feed is live in ProPresenter (an operator "clear" drops it).
+async function ensureVideoInput() {
+  if (!config.ppVideoInput) return null;
+  const layers = await pp('/v1/status/layers').catch(() => null);
+  if (layers?.video_input) return 'live';
+  await pp(`/v1/video_inputs/${encodeURIComponent(config.ppVideoInput)}/trigger`);
+  return 'triggered';
+}
+
 async function showOnProPresenter({ reference, text }) {
   const results = {};
+  const input = await ensureVideoInput().catch(() => null);
+  if (input) results.videoInput = input;
   if (config.sendToMessage) {
     const tokens = await buildTokens({
       [config.referenceToken]: reference,
@@ -296,6 +311,46 @@ async function findProPresenter() {
     }),
   );
   return found.filter(Boolean);
+}
+
+// Video inputs ProPresenter can trigger (from the Media Bin's Video Inputs playlist).
+async function listVideoInputs() {
+  return ((await pp('/v1/video_inputs')) || []).map((v) => ({ uuid: v.id?.uuid, name: v.id?.name }));
+}
+
+const LED_TV_LOOK = 'Scripture Listener - LED + TV';
+
+/**
+ * Creates (or updates) and activates a Look where the first audience screen shows the Message
+ * and the second shows the video input carrying the NDI verse feed. Every other layer on each
+ * screen is copied from the current Look, so lyrics, media etc. keep working.
+ */
+async function setupLedTvLook(messageScreen = 0, feedScreen = 1) {
+  const current = await pp('/v1/look/current');
+  const screens = (current.screens || []).map((sc) => ({ ...sc }));
+  if (screens.length < 2) {
+    throw new Error('ProPresenter has only one audience screen. Add the TV as a second audience screen in ProPresenter → Screens first.');
+  }
+  Object.assign(screens[messageScreen], { messages: true, video_input: false });
+  Object.assign(screens[feedScreen], { messages: false, video_input: true });
+  const existing = ((await pp('/v1/looks')) || []).find((l) => l.id?.name === LED_TV_LOOK);
+  let id = existing?.id?.uuid;
+  if (existing) {
+    await pp(`/v1/look/${id}`, { method: 'PUT', body: { id: { uuid: '', name: LED_TV_LOOK, index: 0 }, screens } });
+  } else {
+    // uuid/index are required by ProPresenter's parser but ignored.
+    const created = await pp('/v1/looks', { method: 'POST', body: { id: { uuid: '', name: LED_TV_LOOK, index: 0 }, screens } });
+    id = created?.id?.uuid;
+  }
+  if (id) await pp(`/v1/look/${id}/trigger`);
+  const steps = [
+    `${existing ? 'Updated' : 'Created'} the Look "${LED_TV_LOOK}" and made it live`,
+    `Screen ${messageScreen + 1}: shows the Scripture message, hides the video input`,
+    `Screen ${feedScreen + 1}: shows the video input (the NDI verse), hides messages`,
+  ];
+  if (config.ppVideoInput) steps.push(`Video input: ${(await ensureVideoInput()) === 'triggered' ? 'started' : 'already live'}`);
+  else steps.push('Now choose the video input carrying the NDI feed under Settings → NDI.');
+  return steps;
 }
 
 // First free port at or after `preferred` (so another program using 4000/4001 doesn't stop us).
@@ -574,6 +629,10 @@ async function handleApi(req, res, url) {
       }
       return send(res, 200, { found, config: publicConfig() });
     }
+    case 'GET /api/pp/video_inputs':
+      return send(res, 200, await listVideoInputs());
+    case 'POST /api/pp/led-tv-look':
+      return send(res, 200, { steps: await setupLedTvLook() });
     case 'POST /api/pp/setup':
       return send(res, 200, { steps: await setupProPresenter(), config: publicConfig() });
     case 'GET /api/pp/status': {

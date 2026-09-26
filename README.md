@@ -118,6 +118,30 @@ background colour, the highlight colour and the text size. Long passages shrink 
 - **Mac:** allow Scripture Listener to find devices on your local network when macOS asks,
   otherwise other computers can't see the feeds.
 
+#### Two ProPresenter screens with different styles (e.g. LED wall + TV)
+
+ProPresenter shows a Message the same way on every screen, but its **Looks** can choose which layers
+each screen shows. Scripture Listener uses that to send the verse **both** ways at once:
+
+- **Screen 1 (LED):** the ProPresenter **Message**, styled by the Message's theme.
+- **Screen 2 (TV):** a ProPresenter **video input** carrying the *Scripture - Full Screen* (or
+  *Lower Third*) NDI feed, styled in Scripture Listener. The feed is fully transparent while no
+  verse is showing, so lyrics and everything else on the TV stay visible.
+
+Setup (once):
+
+1. In ProPresenter, add the TV as a second **audience screen** (Screens).
+2. ProPresenter → Settings → **Inputs**: add the NDI source *Scripture - Full Screen*, then add that
+   input to the Media Bin's **Video Inputs** playlist.
+3. In Scripture Listener → Settings → NDI video outputs: choose that **ProPresenter video input**,
+   then click **Create LED + TV Look**. It creates and activates the Look
+   *Scripture Listener - LED + TV* (screen 1: Message on, video input off; screen 2: Message off,
+   video input on; every other layer copied from your current Look).
+
+On each Show, Scripture Listener restarts the video input if someone cleared it in ProPresenter.
+If screen 1 also uses a live camera on the video input layer, that camera won't show on screen 1
+in this Look.
+
 NDI® is a registered trademark of Vizrt NDI AB.
 
 ### What it understands
@@ -262,6 +286,8 @@ To just update the app on this Mac (about 20 seconds, no installer or GitHub): `
 | `storyDetection` | `true` | Suggest retold Bible stories |
 | `ndiLowerThird` / `ndiFullScreen` | `false` | Send the NDI feeds (desktop app only) |
 | `ndiFullScreenBg` / `ndiAccent` / `ndiTextScale` | `#0d1b33` / `#f5c451` / `1` | NDI feed background, highlight colour, text size |
+| `ndiFullScreenBackdrop` | `solid` | `solid` or `transparent` background behind the full-screen verse |
+| `ppVideoInput` | `''` | ProPresenter video input (uuid) carrying an NDI feed; re-triggered on Show |
 | `aiUrl` / `aiToken` | — | Cloudflare Worker URL and key (never sent to the page) |
 
 The desktop app can ship presets in `data/defaults.json`. The user's own settings still take priority.
