@@ -29,9 +29,10 @@
         <button id="clear" class="danger">Clear screen</button>
       </div>
       <form id="manual" class="row">
-        <input id="manual-ref" placeholder="Type a reference, e.g. John 3:16-18" autocomplete="off" />
-        <button type="submit">Show</button>
+        <input id="manual-ref" placeholder="Reference (John 3:16-18) or words (love is patient)" autocomplete="off" />
+        <button type="submit">Show / Search</button>
       </form>
+      <ul id="search-results" class="results"></ul>
     </section>
 
     <section class="panel">
@@ -59,6 +60,7 @@
         <label>Translation
           <select name="translation">
             <option value="kjv">King James Version (KJV)</option>
+            <option value="bsb">Berean Standard Bible (BSB)</option>
             <option value="web">World English Bible (WEB)</option>
             <option value="asv">American Standard Version (ASV)</option>
             <option value="bbe">Bible in Basic English (BBE)</option>

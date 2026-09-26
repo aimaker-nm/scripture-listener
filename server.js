@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lookup, search, detectQuotes, indexExists, buildIndex, LOCAL_TRANSLATIONS } from './lib/search.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -143,10 +144,13 @@ async function clearProPresenter() {
   return results;
 }
 
-// ---------- Bible text (bible-api.com, public-domain translations) ----------
+// ---------- Bible text ----------
+// KJV and BSB are stored locally (work offline); other translations come from bible-api.com.
 
 const verseCache = new Map();
 async function getVerse(reference, translation) {
+  const local = lookup(reference, translation);
+  if (local) return local;
   const key = `${translation}|${reference}`;
   if (verseCache.has(key)) return verseCache.get(key);
   const url = `${BIBLE_API}/${encodeURIComponent(reference)}?translation=${encodeURIComponent(translation)}`;
@@ -201,6 +205,17 @@ async function handleApi(req, res, url) {
       }
       await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
       return send(res, 200, config);
+    }
+    case 'GET /api/search': {
+      const q = url.searchParams.get('q');
+      if (!q) return send(res, 400, { error: 'q is required' });
+      if (!searchReady) return send(res, 503, { error: 'Verse search is still being prepared; try again in a few minutes.' });
+      return send(res, 200, await search(q, 8));
+    }
+    case 'POST /api/detect-quotes': {
+      if (!searchReady) return send(res, 200, []);
+      const { text } = await readBody(req);
+      return send(res, 200, await detectQuotes(text || ''));
     }
     case 'GET /api/verse': {
       const ref = url.searchParams.get('ref');
@@ -272,6 +287,17 @@ const server = http.createServer(async (req, res) => {
     send(res, 502, { error: err.message });
   }
 });
+
+// Verse search needs its index; build it in the background the first time (a few minutes).
+let searchReady = indexExists();
+if (!searchReady) {
+  console.log('Preparing verse search for first use (a few minutes)...');
+  (async () => {
+    for (const t of LOCAL_TRANSLATIONS) await buildIndex(t);
+    searchReady = true;
+    console.log('Verse search ready.');
+  })().catch((err) => console.error(`Verse search unavailable: ${err.message}`));
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`Scripture Listener running at http://localhost:${PORT}`);

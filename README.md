@@ -1,8 +1,9 @@
 # Scripture Listener for ProPresenter
 
 Listens to the preacher, picks out Bible references as they are spoken
-("turn with me to John chapter three verse sixteen"), looks up the verse, and
-shows it on the audience screens through ProPresenter.
+("turn with me to John chapter three verse sixteen") **and verses they quote or
+paraphrase without a reference** ("all things work together for good…"), looks up
+the verse, and shows it on the audience screens through ProPresenter.
 
 ```
  microphone ─► Chrome speech-to-text ─► reference detector ─► verse lookup ─► ProPresenter API ─► screens
@@ -24,6 +25,28 @@ shows it on the audience screens through ProPresenter.
 
 Ordinary speech like "John and Mark went…" or "I'll mark 3 things" is ignored:
 a book name must be followed by chapter **and** verse, or by the word "chapter".
+
+### Quotes and paraphrases (no reference said)
+
+When the preacher quotes a verse without naming it, the app suggests it in the
+Detected list with a yellow **quote** badge, e.g.
+
+- "remember that all things work together for good for those who love God" → Romans 8:28
+- "love is patient, love is kind" (modern wording) → 1 Corinthians 13:4
+- "the joy of the Lord is your strength" (a line from a long verse) → Nehemiah 8:10
+
+Quotes are always suggestions: they never go on screen without a click, even with Auto-send on.
+Common church phrases ("in the name of the Lord Jesus Christ", "let us bow our heads and pray")
+are ignored.
+
+### Search by words
+
+Type words from a verse in the box under **On screen now** (e.g. `love is patient`) and press
+Enter to get the closest verses. Typing a reference (`Romans 8:28-30`) shows it directly.
+
+Search runs on this computer with a small AI model (no internet or account needed). It matches
+by meaning across the KJV and the modern-English Berean Standard Bible, so KJV and NIV-style
+wording both work.
 
 ## Requirements
 
@@ -53,12 +76,21 @@ a book name must be followed by chapter **and** verse, or by the word "chapter".
 
 You can use different names — just enter them in the app's Settings.
 
-## 2. Run the app
+## 2. Install and run the app
+
+First time only:
 
 ```bash
 cd scripture-listener
-npm start
+npm install
+npm run build-index   # prepares verse search: downloads a ~35 MB model, then ~4 minutes
+npm run make-app      # optional: puts "Scripture Listener" in ~/Applications
 ```
+
+Then either double-click **Scripture Listener** (in your user's Applications folder; drag it
+to the Dock), or run `npm start`. The app starts the server and opens the control page in
+Chrome; quit it from the Dock to stop everything. On first launch macOS may ask to let it
+access the folder the project is in — click **Allow**.
 
 Open **http://localhost:4000** in Chrome **on the same computer** (Chrome only
 allows the microphone on `localhost` or HTTPS pages).
@@ -86,8 +118,9 @@ ProPresenter can be on a different computer — just enter its IP address.
 
 ## Bible translations
 
-Verse text comes from [bible-api.com](https://bible-api.com), which serves public-domain
-translations: KJV, WEB, ASV, BBE, Darby and YLT. Copyrighted translations (NIV, NKJV, ESV…)
+KJV and BSB (Berean Standard Bible, a modern translation released to the public domain in 2023)
+are stored in `data/` and work offline. WEB, ASV, BBE, Darby and YLT come from
+[bible-api.com](https://bible-api.com) and need internet. Copyrighted translations (NIV, NKJV, ESV…)
 are not available through it for licensing reasons.
 
 ## Settings
@@ -103,7 +136,7 @@ Settings are saved to `config.json` in this folder (ignored by git).
 | `textToken`      | `Verse`     | Token that receives the verse text                   |
 | `sendToMessage`  | `true`      | Show on the audience screen                          |
 | `sendToStage`    | `false`     | Also send to the stage display message               |
-| `translation`    | `kjv`       | Bible translation                                    |
+| `translation`    | `kjv`       | Bible translation (`kjv`, `bsb`, `web`, …)           |
 | `language`       | `en-US`     | Speech recognition accent (en-GB, en-NG, en-GH, …)   |
 | `autoSend`       | `false`     | Show detected verses without clicking                |
 | `displayStyle`   | `fullScreen`| `fullScreen` or `lowerThird`                         |

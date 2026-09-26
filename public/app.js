@@ -98,6 +98,13 @@ function addToQueue(ref) {
       <button data-act="dismiss">Dismiss</button>
     </div>`;
   li.querySelector('.q-ref').textContent = ref.reference;
+  if (ref.kind === 'quote') {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = `quote ${Math.round(ref.score * 100)}%`;
+    badge.title = 'The speaker quoted or paraphrased this verse without saying the reference';
+    li.querySelector('.q-ref').append(badge);
+  }
   li.querySelector('.q-spoken').textContent = `heard: “${ref.spoken}”`;
   queue.prepend(li);
   while (queue.children.length > 30) queue.lastElementChild.remove();
@@ -112,17 +119,55 @@ function addToQueue(ref) {
     if (act === 'dismiss') li.remove();
   });
 
-  if (config.autoSend) show(ref).then((ok) => ok && li.classList.add('sent'));
+  // Quotes are guesses, so they always wait for the operator; spoken references can go straight up.
+  if (config.autoSend && ref.kind !== 'quote') show(ref).then((ok) => ok && li.classList.add('sent'));
 }
 
-function handleTranscript(text) {
+function queueOnce(ref) {
+  const now = Date.now();
+  if (now - (recent.get(ref.reference) || 0) < DUPLICATE_WINDOW_MS) return;
+  recent.set(ref.reference, now);
+  addToQueue(ref);
+}
+
+async function handleTranscript(text) {
   const result = findReferences(text, context);
   context = result.context;
-  const now = Date.now();
-  for (const ref of result.references) {
-    if (now - (recent.get(ref.reference) || 0) < DUPLICATE_WINDOW_MS) continue;
-    recent.set(ref.reference, now);
-    addToQueue(ref);
+  result.references.forEach(queueOnce);
+  if (result.references.length) return;
+
+  // No reference said out loud: check whether a verse was quoted or paraphrased.
+  try {
+    const quotes = await api('/api/detect-quotes', { method: 'POST', body: { text } });
+    for (const q of quotes) queueOnce({ ...q, kind: 'quote' });
+  } catch {
+    // quote detection is a bonus; spoken references keep working without it
+  }
+}
+
+// ---------- search box ----------
+
+function renderResults(results) {
+  const list = $('search-results');
+  list.replaceChildren();
+  for (const r of results) {
+    const li = document.createElement('li');
+    li.innerHTML = '<div class="r-body"><span class="r-ref"></span> <span class="r-text"></span></div><button class="primary">Show</button>';
+    li.querySelector('.r-ref').textContent = r.reference;
+    li.querySelector('.r-text').textContent = r.text;
+    li.querySelector('button').addEventListener('click', async () => {
+      if (await show({ ...r, verseEnd: null })) list.replaceChildren();
+    });
+    list.append(li);
+  }
+  if (!results.length) list.innerHTML = '<li class="muted">No matching verses.</li>';
+}
+
+async function searchVerses(text) {
+  try {
+    renderResults(await api(`/api/search?q=${encodeURIComponent(text)}`));
+  } catch (err) {
+    toast(err.message, true);
   }
 }
 
@@ -289,8 +334,13 @@ $('manual').addEventListener('submit', (e) => {
   if (!text) return;
   // Typed "John 3" should work too, so treat bare numbers as a chapter.
   const parsed = findReferences(text).references[0] || findReferences(text.replace(/(\D)\s+(\d+)\s*$/, '$1 chapter $2')).references[0];
-  show(parsed || text);
-  $('manual-ref').value = '';
+  if (parsed) {
+    $('search-results').replaceChildren();
+    show(parsed);
+    $('manual-ref').value = '';
+  } else {
+    searchVerses(text); // words from a verse, e.g. "love is patient"
+  }
 });
 
 $('settings-form').addEventListener('submit', async (e) => {

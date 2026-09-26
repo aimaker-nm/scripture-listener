@@ -1,7 +1,7 @@
 {
   "name": "scripture-listener",
   "version": "1.0.0",
-  "description": "Listens to the preacher, detects Bible references, and shows the verse in ProPresenter",
+  "description": "Listens to the preacher, detects Bible references and quoted verses, and shows them in ProPresenter",
   "type": "module",
   "private": true,
   "engines": {
@@ -9,6 +9,11 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "build-index": "node scripts/build-index.js",
+    "test": "node --test test/*.test.js",
+    "make-app": "bash mac/make-app.sh"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1"
   }
 }

@@ -58,6 +58,13 @@ button.danger { color: var(--danger); }
 #queue .q-text { font-size: 14px; color: var(--muted); margin: 4px 0 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #queue .q-spoken { font-size: 12px; color: var(--muted); font-style: italic; }
 #queue li.sent { opacity: .55; }
+.badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 99px; margin-left: 6px; vertical-align: middle; background: #3a2f10; color: #f5c451; }
+
+.results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.results li { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.results .r-body { flex: 1; min-width: 0; font-size: 14px; }
+.results .r-ref { font-weight: 700; }
+.results .r-text { color: var(--muted); }
 
 #transcript { max-height: 180px; overflow: auto; line-height: 1.5; }
 .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin-top: 12px; }
