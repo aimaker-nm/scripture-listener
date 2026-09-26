@@ -94,6 +94,41 @@ wording both work.
 - **Google Chrome or Microsoft Edge** (their built-in speech recognition is used; it needs internet).
 - A microphone or an audio feed from the sound desk into the computer.
 
+## Desktop app (Mac and Windows)
+
+Scripture Listener is also a normal desktop app with its own window, built with Electron:
+
+- **Mac** (Apple Silicon, M1 or newer): `Scripture Listener-<version>-arm64.dmg` — open it and drag
+  the app to Applications.
+- **Windows** (64-bit): `Scripture Listener Setup <version>.exe` — run it and follow the steps.
+
+Everything is inside the app (Bibles, search, Whisper speech recognition and its model); nothing
+else needs installing. Settings are kept per user (Mac: `~/Library/Application Support/Scripture
+Listener/`, Windows: `%APPDATA%\Scripture Listener\`).
+
+The installers are not signed with an Apple/Microsoft developer certificate yet, so the first launch shows a warning:
+
+- **Mac:** "cannot be opened because the developer cannot be verified" → right-click the app →
+  **Open** → **Open**. (Or System Settings → Privacy & Security → **Open Anyway**.)
+- **Windows:** "Windows protected your PC" → **More info** → **Run anyway**.
+
+**Speech on Windows:** Whisper runs on the computer's processor. On a slower PC, choose
+**Settings → Speech engine → Whisper in the cloud**, which sends the audio to the Cloudflare Worker
+(`cloud/`) instead — same accuracy, needs internet.
+
+### Building the installers
+
+GitHub Actions builds both (Actions → **Desktop installers** → *Run workflow*, or push a `v*` tag);
+download them from the run's *Artifacts*. The workflow needs the repository secrets `AI_URL` and
+`AI_TOKEN` to preset cloud features. To build the Mac app locally:
+
+```bash
+npm run setup-whisper && npm run build-index   # data the app bundles
+# a self-contained whisper-server must be in build/whisper/darwin-arm64/ (see the workflow)
+npx electron-builder --mac                      # build outside an iCloud-synced folder
+npm run desktop                                 # or run the desktop app from source
+```
+
 ## 1. Set up ProPresenter (one time)
 
 1. **Enable the API:** ProPresenter → Settings → **Network** → tick **Enable Network**.
