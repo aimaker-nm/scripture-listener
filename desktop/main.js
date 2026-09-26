@@ -3,6 +3,7 @@
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { syncNdi, stopAllNdi, status as ndiStatus } from './ndi.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 let APP_URL = 'http://localhost:4000'; // the server moves to a free port if 4000 is taken
@@ -70,6 +71,13 @@ app.whenReady().then(async () => {
     return;
   }
   createWindow();
+
+  // NDI feeds follow the settings: started now if enabled, and whenever settings change.
+  const sync = async (cfg) => server.setNdiStatus(await syncNdi(APP_URL, cfg));
+  sync(server.getConfig());
+  server.onConfigChange(sync);
+  setInterval(() => server.setNdiStatus(ndiStatus()), 2000); // keep frame counts current
+
   // Mac: clicking the Dock icon with no window open brings the window back.
   app.on('activate', () => !win && createWindow());
 });
@@ -82,5 +90,6 @@ app.on('before-quit', (event) => {
   if (stopping || !server) return;
   stopping = true;
   event.preventDefault();
+  stopAllNdi();
   server.shutdown().finally(() => app.quit());
 });

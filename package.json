@@ -18,7 +18,8 @@
     "dist:win": "electron-builder --win"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.8.1"
+    "@huggingface/transformers": "^3.8.1",
+    "@stagetimerio/grandiose": "^0.2.0"
   },
   "devDependencies": {
     "electron": "^44.4.5",
@@ -44,7 +45,8 @@
     "asarUnpack": [
       "node_modules/onnxruntime-node/**",
       "node_modules/sharp/**",
-      "node_modules/@img/**"
+      "node_modules/@img/**",
+      "node_modules/@stagetimerio/grandiose/**"
     ],
     "extraResources": [
       {
@@ -74,7 +76,11 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Scripture Listener listens to the sermon to find Bible references."
+        "NSMicrophoneUsageDescription": "Scripture Listener listens to the sermon to find Bible references.",
+        "NSLocalNetworkUsageDescription": "Scripture Listener sends verse video feeds (NDI) to OBS, vMix and other devices on your network, and connects to ProPresenter.",
+        "NSBonjourServices": [
+          "_ndi._tcp"
+        ]
       },
       "identity": "-",
       "hardenedRuntime": false

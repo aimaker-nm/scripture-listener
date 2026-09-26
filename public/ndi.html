@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Scripture NDI output</title>
+  <!--
+    Rendered off-screen by the desktop app at 1920x1080 and sent as an NDI video feed.
+    ?style=lowerThird  transparent background, verse in a band at the bottom (livestream overlay)
+    ?style=fullScreen  solid background, large centred verse (side / overflow screens)
+  -->
+  <style>
+    html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent;
+      font-family: Georgia, 'Times New Roman', serif; color: #fff; }
+    .out { position: absolute; opacity: 0; transition: opacity .45s ease; display: flex; flex-direction: column; }
+    .out.on { opacity: 1; }
+    .text { line-height: 1.3; }
+    .ref { font-family: 'Helvetica Neue', Arial, sans-serif; font-weight: 700; letter-spacing: .02em; }
+
+    /* Lower third: over the camera shot, leaves the top two thirds clear. */
+    body.lowerThird .out { left: 96px; right: 96px; bottom: 64px; max-height: 330px; padding: 28px 40px 30px;
+      background: rgba(10, 14, 22, var(--box-opacity, .82)); border-left: 10px solid var(--accent, #f5c451);
+      border-radius: 10px; box-sizing: border-box; gap: 12px; }
+    body.lowerThird .ref { font-size: 34px; color: var(--accent, #f5c451); order: -1; }
+    body.lowerThird .text { font-size: 44px; }
+
+    /* Full screen: for side and overflow screens. */
+    body.fullScreen { background: var(--bg, #0d1b33); }
+    body.fullScreen .out { inset: 110px 150px; justify-content: center; align-items: center; text-align: center; gap: 36px; }
+    body.fullScreen .text { font-size: 76px; }
+    body.fullScreen .ref { font-size: 48px; color: var(--accent, #f5c451); }
+  </style>
+</head>
+<body>
+  <div class="out" id="out"><div class="text" id="text"></div><div class="ref" id="ref"></div></div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const style = params.get('style') === 'fullScreen' ? 'fullScreen' : 'lowerThird';
+    document.body.className = style;
+    const root = document.documentElement.style;
+    if (params.get('bg')) root.setProperty('--bg', params.get('bg'));
+    if (params.get('accent')) root.setProperty('--accent', params.get('accent'));
+    if (params.get('box')) root.setProperty('--box-opacity', params.get('box'));
+    const scale = Number(params.get('scale') || 1);
+
+    const out = document.getElementById('out');
+    const textEl = document.getElementById('text');
+    const base = parseFloat(getComputedStyle(textEl).fontSize) * scale;
+
+    // Shrink the verse until it fits its area (long passages), never above the base size.
+    function fit() {
+      let lo = 18, hi = base;
+      textEl.style.fontSize = `${hi}px`;
+      // Fits when every line sits inside the box's padding (scrollHeight ignores the padding).
+      const fits = () => {
+        const box = out.getBoundingClientRect();
+        const cs = getComputedStyle(out);
+        const top = box.top + parseFloat(cs.paddingTop);
+        const bottom = box.bottom - parseFloat(cs.paddingBottom);
+        return [...out.children].every((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top >= top - 1 && r.bottom <= bottom + 1;
+        });
+      };
+      if (fits()) return;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) / 2;
+        textEl.style.fontSize = `${mid}px`;
+        if (fits()) lo = mid; else hi = mid;
+      }
+      textEl.style.fontSize = `${lo}px`;
+    }
+
+    const events = new EventSource('/api/display-events');
+    events.onmessage = (e) => {
+      const verse = JSON.parse(e.data);
+      if (!verse) return out.classList.remove('on');
+      textEl.textContent = verse.text;
+      document.getElementById('ref').textContent = verse.reference;
+      fit();
+      out.classList.add('on');
+    };
+  </script>
+</body>
+</html>

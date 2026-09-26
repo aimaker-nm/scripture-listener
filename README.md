@@ -98,6 +98,28 @@ Settings instead of using *Find*, then click **Create Scripture message**.
 - **Translation:** KJV or BSB (a modern translation) work offline. WEB, ASV, BBE, Darby and YLT need internet.
 - **Stage display:** tick *Also send to stage display* in Settings to show the verse to the preacher and band too.
 
+### Different styles on different screens (NDI)
+
+A ProPresenter Message looks the same on every screen. For screens that need their own look,
+the desktop app can also send the verse as **NDI video feeds** on your network, at the same moment
+as the Message:
+
+| Feed (NDI source name) | Looks like | Use it for |
+|---|---|---|
+| **Scripture - Lower Third** | verse in a band at the bottom, **transparent** background | livestream / recording: add it in OBS or vMix over the camera |
+| **Scripture - Full Screen** | large centred verse on a solid background | side screens, overflow room, lobby TV |
+
+Turn them on in **Settings → NDI video outputs**, where you can also set the full-screen
+background colour, the highlight colour and the text size. Long passages shrink to fit automatically.
+
+- **OBS:** install the free *DistroAV* (NDI) plugin, then *Sources → + → NDI Source* and pick
+  "Scripture - Lower Third".
+- **vMix:** *Add Input → NDI / Desktop Capture* and pick the feed.
+- **Mac:** allow Scripture Listener to find devices on your local network when macOS asks,
+  otherwise other computers can't see the feeds.
+
+NDI® is a registered trademark of Vizrt NDI AB.
+
 ### What it understands
 
 | The preacher says | Shows |
@@ -237,6 +259,8 @@ To build the Mac app locally, put a self-contained `whisper-server` in `build/wh
 | `displayStyle` | `fullScreen` | `fullScreen` or `lowerThird` |
 | `fullScreenSlide` / `lowerThirdSlide` | Four Lines / Lower 3rd Lyrics | ProPresenter theme slide uuids |
 | `storyDetection` | `true` | Suggest retold Bible stories |
+| `ndiLowerThird` / `ndiFullScreen` | `false` | Send the NDI feeds (desktop app only) |
+| `ndiFullScreenBg` / `ndiAccent` / `ndiTextScale` | `#0d1b33` / `#f5c451` / `1` | NDI feed background, highlight colour, text size |
 | `aiUrl` / `aiToken` | — | Cloudflare Worker URL and key (never sent to the page) |
 
 The desktop app can ship presets in `data/defaults.json`. The user's own settings still take priority.

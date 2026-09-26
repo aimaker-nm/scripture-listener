@@ -440,6 +440,22 @@ async function loadSlides() {
 
 // ---------- settings & status ----------
 
+function showNdiStatus() {
+  const el = $('ndi-status');
+  const fieldset = el.closest('fieldset');
+  for (const input of fieldset.querySelectorAll('input, select')) input.disabled = !config.desktop;
+  if (!config.desktop) {
+    el.textContent = 'NDI outputs are available in the Scripture Listener desktop app.';
+  } else if (config.ndi && !config.ndi.available) {
+    el.textContent = `NDI is not available on this computer (${config.ndi.error || 'unknown error'}).`;
+  } else {
+    const active = (config.ndi?.outputs || []).filter((o) => o.active).map((o) => o.name);
+    el.textContent = active.length
+      ? `Sending on the network: ${active.join(', ')}. In OBS/vMix add an NDI source and pick it by name.`
+      : 'Tick a feed to send it on the network. It appears in OBS/vMix as an NDI source named below.';
+  }
+}
+
 function fillSettings() {
   const form = $('settings-form');
   // The desktop app has no Chrome speech engine.
@@ -452,6 +468,7 @@ function fillSettings() {
   }
   $('auto-send').checked = Boolean(config.autoSend);
   markStyle();
+  showNdiStatus();
 }
 
 async function saveSettings(partial) {
@@ -589,6 +606,11 @@ $('settings-form').addEventListener('submit', async (e) => {
     values[el.name] = el.type === 'checkbox' ? el.checked : el.value;
   }
   await saveSettings(values);
+  // NDI feeds start a moment after saving; refresh their status.
+  setTimeout(async () => {
+    config.ndi = (await api('/api/config')).ndi;
+    showNdiStatus();
+  }, 2500);
   if (recognition) recognition.lang = config.language;
   if (listening) {
     // Engine or microphone may have changed.

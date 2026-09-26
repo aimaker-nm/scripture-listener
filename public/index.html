@@ -73,6 +73,20 @@
         <label>Lower third slide <select name="lowerThirdSlide" class="slide-select"></select></label>
         <label class="check"><input name="sendToStage" type="checkbox" /> Also send to stage display</label>
         <label class="check"><input name="storyDetection" type="checkbox" /> Detect retold Bible stories (Cloudflare AI)</label>
+        <fieldset class="ndi">
+          <legend>NDI video outputs</legend>
+          <p class="muted small" id="ndi-status"></p>
+          <label class="check"><input name="ndiLowerThird" type="checkbox" /> “Scripture - Lower Third” (transparent, for the livestream in OBS / vMix)</label>
+          <label class="check"><input name="ndiFullScreen" type="checkbox" /> “Scripture - Full Screen” (for side / overflow screens)</label>
+          <label>Full screen background <input name="ndiFullScreenBg" type="color" /></label>
+          <label>Reference / highlight colour <input name="ndiAccent" type="color" /></label>
+          <label>Text size
+            <select name="ndiTextScale">
+              <option value="0.8">Smaller</option><option value="1">Normal</option>
+              <option value="1.2">Larger</option><option value="1.4">Largest</option>
+            </select>
+          </label>
+        </fieldset>
         <label>Translation
           <select name="translation">
             <option value="kjv">King James Version (KJV)</option>

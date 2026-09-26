@@ -41,6 +41,13 @@ const DEFAULT_CONFIG = {
   // or 'browser' (Chrome's built-in; not available in the desktop app).
   speechEngine: 'whisper',
   micId: '', // audio input device id; '' = system default
+  // NDI video feeds (desktop app only): livestream lower third with transparency, and a
+  // full-screen feed for side/overflow screens. Off until the church turns them on.
+  ndiLowerThird: false,
+  ndiFullScreen: false,
+  ndiFullScreenBg: '#0d1b33',
+  ndiAccent: '#f5c451',
+  ndiTextScale: 1,
   // Story detection (retold Bible stories) via the Cloudflare Worker in cloud/.
   storyDetection: true,
   aiUrl: '', // e.g. https://scripture-listener-ai.<you>.workers.dev
@@ -70,7 +77,14 @@ if (existsSync(CONFIG_FILE)) {
 function publicConfig() {
   const { aiToken, ...rest } = config;
   const cloud = Boolean(config.aiUrl && aiToken);
-  return { ...rest, storyDetectionAvailable: cloud, cloudSpeechAvailable: cloud, whisperReady, desktop: Boolean(process.versions.electron) };
+  return {
+    ...rest,
+    storyDetectionAvailable: cloud,
+    cloudSpeechAvailable: cloud,
+    whisperReady,
+    desktop: Boolean(process.versions.electron),
+    ndi: ndiStatus,
+  };
 }
 
 // ---------- ProPresenter ----------
@@ -185,7 +199,19 @@ function pickSlide(slides, style) {
   return null;
 }
 
-const saveConfig = () => writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+// The desktop app listens for setting changes (to start/stop NDI feeds).
+const configListeners = new Set();
+export const onConfigChange = (fn) => configListeners.add(fn);
+export const getConfig = () => config;
+let ndiStatus = null; // set by the desktop app; null when running without it
+export const setNdiStatus = (s) => {
+  ndiStatus = s;
+};
+
+async function saveConfig() {
+  await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+  for (const fn of configListeners) Promise.resolve(fn(config)).catch((err) => console.error(err));
+}
 
 /** Creates or repairs the Scripture message and chooses slides. Returns what was done, step by step. */
 async function setupProPresenter() {
