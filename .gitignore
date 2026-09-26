@@ -7,3 +7,4 @@ data/whisper/
 build/whisper/
 dist/
 data/defaults.json
+cloud/.admin-token

@@ -6,6 +6,9 @@
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
   "ai": { "binding": "AI" },
+  // Installers for the download page (GET /) and /download/<file>.
+  "r2_buckets": [{ "binding": "DOWNLOADS", "bucket_name": "scripture-listener-downloads" }],
   "observability": { "enabled": true }
   // Secret APP_TOKEN (wrangler secret put APP_TOKEN) must match "aiToken" in the app's config.json.
+  // Secret ADMIN_TOKEN (different!) protects uploading installers (scripts/upload-installers.mjs).
 }

@@ -1,4 +1,7 @@
-// Scripture Listener cloud services, all requiring "Authorization: Bearer <APP_TOKEN>":
+// Scripture Listener cloud services.
+// Public: GET / (download page) and GET /download/<file> (installers stored in R2).
+// Admin ("Authorization: Bearer <ADMIN_TOKEN>"): /upload/* to upload installers in parts.
+// App ("Authorization: Bearer <APP_TOKEN>"):
 // - POST /identify {"text": "...transcript..."} -> {"matches":[{reference, confidence, story}]}
 //   (which Bible story is the preacher retelling)
 // - POST /transcribe?prompt=... with a WAV body -> {"text": "..."}
@@ -68,12 +71,116 @@ const SCHEMA = {
   required: ['matches'],
 };
 
+// ---------- downloads ----------
+
+const INSTALLERS = [
+  { key: 'mac', label: 'Download for Mac', note: 'Apple Silicon (M1 or newer), macOS 12+' },
+  { key: 'win', label: 'Download for Windows', note: 'Windows 10 or 11, 64-bit' },
+];
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+async function downloadPage(env) {
+  // The newest file for each platform, by upload time.
+  const { objects } = await env.DOWNLOADS.list();
+  const latest = {};
+  for (const o of objects) {
+    const platform = o.key.includes('-mac-') ? 'mac' : o.key.includes('-win-') ? 'win' : null;
+    if (platform && (!latest[platform] || o.uploaded > latest[platform].uploaded)) latest[platform] = o;
+  }
+  const buttons = INSTALLERS.map(({ key, label, note }) => {
+    const o = latest[key];
+    if (!o) return `<div class="dl off"><strong>${label}</strong><span>Coming soon</span></div>`;
+    const mb = Math.round(o.size / 1048576);
+    return `<a class="dl" href="/download/${encodeURIComponent(o.key)}"><strong>${label}</strong><span>${escapeHtml(note)} · ${mb} MB</span></a>`;
+  }).join('');
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scripture Listener</title><style>
+:root{--bg:#111418;--panel:#1a1f26;--border:#2b323c;--text:#e8ecf1;--muted:#8a95a3;--accent:#3d8bfd}
+@media (prefers-color-scheme: light){:root{--bg:#f6f7f9;--panel:#fff;--border:#dde1e6;--text:#14181d;--muted:#5d6773;--accent:#2563eb}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+main{max-width:640px;margin:0 auto;padding:48px 16px}h1{margin:0 0 8px;font-size:30px}p{color:var(--muted);line-height:1.55}
+.dls{display:grid;gap:12px;margin:28px 0}.dl{display:grid;gap:4px;padding:16px 18px;border-radius:12px;background:var(--accent);color:#fff;text-decoration:none}
+.dl span{opacity:.85;font-size:14px}.dl.off{background:var(--panel);border:1px solid var(--border);color:var(--muted)}
+h2{font-size:16px;margin:28px 0 6px}ol{color:var(--muted);line-height:1.6;padding-left:20px}
+</style></head><body><main>
+<h1>Scripture Listener</h1>
+<p>Listens to the sermon and puts the Bible verses on your ProPresenter screens — spoken references,
+quoted verses and retold Bible stories, in any accent.</p>
+<div class="dls">${buttons}</div>
+<h2>First launch</h2>
+<ol><li><strong>Mac:</strong> open the .dmg, drag Scripture Listener to Applications, then right-click it → <em>Open</em> → <em>Open</em> (needed once).</li>
+<li><strong>Windows:</strong> run the installer; if “Windows protected your PC” appears, click <em>More info</em> → <em>Run anyway</em>.</li></ol>
+<h2>You also need</h2>
+<ol><li>ProPresenter 7.9 or newer with Settings → Network → <em>Enable Network</em> turned on.</li>
+<li>A Message in ProPresenter named <em>Scripture</em> containing <em>{Reference}</em> and <em>{Verse}</em>.</li></ol>
+</main></body></html>`;
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
+
+async function download(request, env, key) {
+  // Supports resuming (Range requests) for these large files.
+  const object = await env.DOWNLOADS.get(key, { range: request.headers, onlyIf: request.headers });
+  if (!object) return new Response('Not found', { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('Accept-Ranges', 'bytes');
+  headers.set('Content-Disposition', `attachment; filename="${key.replace(/"/g, '')}"`);
+  if (!('body' in object)) return new Response(null, { status: 304, headers });
+  if (request.method === 'HEAD') {
+    headers.set('Content-Length', String(object.size));
+    return new Response(null, { headers });
+  }
+  if (object.range && request.headers.has('range')) {
+    const { offset = 0, length = object.size - offset } = object.range;
+    headers.set('Content-Range', `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    return new Response(object.body, { status: 206, headers });
+  }
+  return new Response(object.body, { headers });
+}
+
+// Multipart upload, so installers larger than a single request can be stored.
+async function upload(request, env, url) {
+  const key = url.searchParams.get('key');
+  if (!key || !/^[\w.-]+$/.test(key)) return json({ error: 'bad key' }, 400);
+  if (url.pathname === '/upload/create') {
+    const type = url.searchParams.get('type') || 'application/octet-stream';
+    const mpu = await env.DOWNLOADS.createMultipartUpload(key, { httpMetadata: { contentType: type } });
+    return json({ uploadId: mpu.uploadId });
+  }
+  const mpu = env.DOWNLOADS.resumeMultipartUpload(key, url.searchParams.get('uploadId') || '');
+  if (url.pathname === '/upload/part') {
+    const part = await mpu.uploadPart(Number(url.searchParams.get('part')), request.body);
+    return json(part);
+  }
+  if (url.pathname === '/upload/complete') {
+    const object = await mpu.complete((await request.json()).parts);
+    return json({ key: object.key, size: object.size });
+  }
+  if (url.pathname === '/upload/abort') {
+    await mpu.abort();
+    return json({ aborted: true });
+  }
+  return json({ error: 'not found' }, 404);
+}
+
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === 'GET' && url.pathname === '/') return downloadPage(env);
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/download/')) {
+      return download(request, env, decodeURIComponent(url.pathname.slice('/download/'.length)));
+    }
+    if (url.pathname.startsWith('/upload/')) {
+      if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return json({ error: 'unauthorized' }, 401);
+      }
+      return upload(request, env, url);
+    }
     if (request.method !== 'POST' || !['/identify', '/transcribe'].includes(url.pathname)) {
       return json({ error: 'not found' }, 404);
     }
