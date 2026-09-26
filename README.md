@@ -41,11 +41,11 @@ a book name must be followed by chapter **and** verse, or by the word "chapter".
    - Name it exactly `Scripture`.
    - In the message text, type two text tokens, for example:
      ```
-     {Verse}
      {Reference}
+     {Verse}
      ```
      ProPresenter turns `{Verse}` and `{Reference}` into text tokens.
-   - Pick a theme/slide for it (lower third or full screen, your choice).
+   - Pick a theme slide for it, e.g. **Single Scripture** (full screen) or **Scripture Lower Third**.
      Make the text box big enough and turn on text auto-shrink so long passages fit.
 3. Make sure your audience screen's **Look** shows the **Messages** layer.
 
