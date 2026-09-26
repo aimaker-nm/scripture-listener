@@ -45,7 +45,9 @@ a book name must be followed by chapter **and** verse, or by the word "chapter".
      {Verse}
      ```
      ProPresenter turns `{Verse}` and `{Reference}` into text tokens.
-   - Pick a theme slide for it, e.g. **Single Scripture** (full screen) or **Scripture Lower Third**.
+   - Pick a theme slide with a **single text box**, e.g. Black Box → **Four Lines**.
+     Avoid the built-in *Scripture* slides: their separate "Reference" box can't be filled
+     by a Message, so it shows the placeholder word "Reference".
      Make the text box big enough and turn on text auto-shrink so long passages fit.
 3. Make sure your audience screen's **Look** shows the **Messages** layer.
 
